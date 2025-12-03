@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual VHS Simulator - Professional Edition</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=VT323&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'VT323', monospace;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #00ff41;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 65, 0.03) 2px,
+                rgba(0, 255, 65, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .title {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(2rem, 5vw, 4rem);
+            font-weight: 900;
+            color: #00ff41;
+            text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41;
+            margin-bottom: 10px;
+            letter-spacing: 3px;
+            animation: titleGlow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes titleGlow {
+            0% { text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41; }
+            100% { text-shadow: 0 0 30px #00ff41, 0 0 60px #00ff41, 0 0 80px #00ff41; }
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: #ff6b35;
+            text-shadow: 0 0 10px #ff6b35;
+            margin-bottom: 20px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+
+        .video-section {
+            position: relative;
+        }
+
+        .vhs-tv {
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            border-radius: 20px;
+            padding: 30px;
+            border: 5px solid #444;
+            box-shadow: 
+                0 0 30px rgba(0, 255, 65, 0.2),
+                inset 0 0 20px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .vhs-tv::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.2) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .screen {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+            border: 3px solid #333;
+            box-shadow: inset 0 0 20px rgba(0, 255, 65, 0.1);
+        }
+
+        .video-display {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: 
+                linear-gradient(90deg, transparent 50%, rgba(0, 255, 65, 0.03) 50%),
+                linear-gradient(rgba(255, 0, 150, 0.03) 0%, transparent 100%);
+            background-size: 3px 3px, 100% 100%;
+        }
+
+        .static-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><filter id="noise"><feTurbulence baseFrequency="0.9" numOctaves="1"/><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/></filter></defs><rect width="100%" height="100%" filter="url(%23noise)"/></svg>') repeat;
+            background-size: 100px 100px;
+            animation: staticNoise 0.1s infinite linear;
+            pointer-events: none;
+        }
+
+        @keyframes staticNoise {
+            0% { transform: translate(0, 0); }
+            10% { transform: translate(-5%, -5%); }
+            20% { transform: translate(-10%, 5%); }
+            30% { transform: translate(5%, -10%); }
+            40% { transform: translate(-5%, 15%); }
+            50% { transform: translate(-10%, 5%); }
+            60% { transform: translate(15%, 0%); }
+            70% { transform: translate(0%, 15%); }
+            80% { transform: translate(-15%, 10%); }
+            90% { transform: translate(10%, 5%); }
+            100% { transform: translate(5%, 0%); }
+        }
+
+        .vhs-effects {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            mix-blend-mode: overlay;
+        }
+
+        .tracking-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.3);
+            top: 50%;
+            left: 0;
+            animation: trackingLine 3s linear infinite;
+            opacity: 0;
+        }
+
+        @keyframes trackingLine {
+            0% { top: -10px; opacity: 0.8; }
+            50% { opacity: 0.4; }
+            100% { top: 110%; opacity: 0; }
+        }
+
+        .video-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: #00ff41;
+            text-shadow: 0 0 10px #00ff41;
+            text-align: center;
+            position: relative;
+            z-index: 5;
+        }
+
+        .controls-panel {
+            background: linear-gradient(145deg, #333, #222);
+            border-radius: 15px;
+            padding: 25px;
+            border: 3px solid #555;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+        }
+
+        .control-group h3 {
+            font-family: 'Orbitron', monospace;
+            color: #ff6b35;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 5px #ff6b35;
+        }
+
+        .transport-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-btn {
+            background: linear-gradient(145deg, #444, #222);
+            border: 2px solid #555;
+            border-radius: 8px;
+            padding: 12px;
+            color: #00ff41;
+            font-family: 'VT323', monospace;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .control-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .control-btn:hover {
+            border-color: #00ff41;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .control-btn:hover::before {
+            left: 100%;
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .control-btn.active {
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+        }
+
+        .slider-container {
+            margin: 15px 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: #ccc;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #444;
+            outline: none;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+            border: 2px solid #000;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            cursor: pointer;
+            border: 2px solid #000;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .tape-counter {
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 5px;
+            padding: 10px;
+            text-align: center;
+            font-family: 'Orbitron', monospace;
+            color: #00ff41;
+            font-size: 1.5rem;
+            text-shadow: 0 0 10px #00ff41;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+        }
+
+        .status-lights {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+
+        .status-light {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #333;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .status-light.active {
+            box-shadow: 0 0 15px currentColor;
+        }
+
+        .status-light.power { color: #00ff41; }
+        .status-light.record { color: #ff0000; }
+        .status-light.play { color: #00ff41; }
+        .status-light.pause { color: #ff6b35; }
+
+        .status-light.power.active { background: #00ff41; }
+        .status-light.record.active { background: #ff0000; }
+        .status-light.play.active { background: #00ff41; }
+        .status-light.pause.active { background: #ff6b35; }
+
+        .advanced-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .glitch-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            opacity: 0;
+            background: 
+                linear-gradient(90deg, #ff0080 0%, transparent 10%, transparent 90%, #00ff80 100%),
+                linear-gradient(0deg, #8000ff 0%, transparent 10%, transparent 90%, #ff8000 100%);
+            mix-blend-mode: screen;
+        }
+
+        .channel-display {
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 5px;
+            padding: 8px 15px;
+            text-align: center;
+            font-family: 'Orbitron', monospace;
+            color: #ff6b35;
+            font-size: 1.2rem;
+            text-shadow: 0 0 8px #ff6b35;
+            margin-bottom: 15px;
+        }
+
+        .feature-showcase {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .feature-card {
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            border: 2px solid #444;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: #00ff41;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+            transform: translateY(-5px);
+        }
+
+        .feature-card h4 {
+            font-family: 'Orbitron', monospace;
+            color: #ff6b35;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .feature-card p {
+            color: #ccc;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .audio-visualizer {
+            height: 60px;
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 5px;
+            margin: 15px 0;
+            display: flex;
+            align-items: end;
+            justify-content: center;
+            padding: 5px;
+        }
+
+        .visualizer-bar {
+            width: 8px;
+            background: linear-gradient(to top, #00ff41, #ff6b35);
+            margin: 0 1px;
+            transition: height 0.1s ease;
+            border-radius: 2px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            animation: pulse 1s infinite;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid #333;
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div class="glitch-overlay" id="glitchOverlay"></div>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="title">VIRTUAL VHS SIMULATOR</h1>
+            <p class="subtitle">Professional Edition - Advanced Retro Technology</p>
+        </header>
+
+        <div class="main-grid">
+            <div class="video-section">
+                <div class="vhs-tv">
+                    <div class="screen">
+                        <div class="video-display">
+                            <div class="video-content" id="videoContent">
+                                <div>
+                                    <i class="fas fa-video" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>
+                                    INSERT VHS TAPE<br>
+                                    <span style="font-size: 1rem; color: #666;">Press POWER to begin</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="static-overlay" id="staticOverlay"></div>
+                        <div class="vhs-effects">
+                            <div class="tracking-line"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls-panel">
+                <div class="control-group">
+                    <div class="tape-counter" id="tapeCounter">00:00:00</div>
+                    <div class="channel-display" id="channelDisplay">CH 03</div>
+                    
+                    <div class="status-lights">
+                        <div class="status-light power" id="powerLight"></div>
+                        <div class="status-light record" id="recordLight"></div>
+                        <div class="status-light play" id="playLight"></div>
+                        <div class="status-light pause" id="pauseLight"></div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Transport Controls</h3>
+                    <div class="transport-controls">
+                        <button class="control-btn" id="powerBtn">
+                            <i class="fas fa-power-off"></i> POWER
+                        </button>
+                        <button class="control-btn" id="playBtn">
+                            <i class="fas fa-play"></i> PLAY
+                        </button>
+                        <button class="control-btn" id="stopBtn">
+                            <i class="fas fa-stop"></i> STOP
+                        </button>
+                        <button class="control-btn" id="pauseBtn">
+                            <i class="fas fa-pause"></i> PAUSE
+                        </button>
+                        <button class="control-btn" id="rewindBtn">
+                            <i class="fas fa-backward"></i> REW
+                        </button>
+                        <button class="control-btn" id="fastForwardBtn">
+                            <i class="fas fa-forward"></i> FF
+                        </button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Audio & Video</h3>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>Volume</span>
+                            <span id="volumeValue">50</span>
+                        </div>
+                        <input type="range" class="slider" id="volumeSlider" min="0" max="100" value="50">
+                    </div>
+                    
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>Tracking</span>
+                            <span id="trackingValue">0</span>
+                        </div>
+                        <input type="range" class="slider" id="trackingSlider" min="-50" max="50" value="0">
+                    </div>
+                    
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>Static</span>
+                            <span id="staticValue">0</span>
+                        </div>
+                        <input type="range" class="slider" id="staticSlider" min="0" max="100" value="0">
+                    </div>
+
+                    <div class="audio-visualizer" id="audioVisualizer">
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Advanced</h3>
+                    <div class="advanced-controls">
+                        <button class="control-btn" id="recordBtn">
+                            <i class="fas fa-circle"></i> REC
+                        </button>
+                        <button class="control-btn" id="ejectBtn">
+                            <i class="fas fa-eject"></i> EJECT
+                        </button>
+                        <button class="control-btn" id="channelBtn">
+                            <i class="fas fa-tv"></i> CH+
+                        </button>
+                        <button class="control-btn" id="glitchBtn">
+                            <i class="fas fa-bolt"></i> GLITCH
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-showcase">
+            <div class="feature-card">
+                <h4><i class="fas fa-magic"></i> Realistic VHS Effects</h4>
+                <p>Authentic scanning lines, static overlay, tracking distortion, and vintage color bleeding for genuine retro experience.</p>
+            </div>
+            <div class="feature-card">
+                <h4><i class="fas fa-cogs"></i> Advanced Controls</h4>
+                <p>Full transport control simulation with realistic timing, status indicators, and professional-grade interface design.</p>
+            </div>
+            <div class="feature-card">
+                <h4><i class="fas fa-waveform-lines"></i> Audio Visualizer</h4>
+                <p>Dynamic audio visualization with retro aesthetics, responding to virtual tape playback and system audio.</p>
+            </div>
+            <div class="feature-card">
+                <h4><i class="fas fa-tv"></i> Channel Simulation</h4>
+                <p>Multi-channel support with authentic channel switching, complete with static transitions and signal degradation.</p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>Virtual VHS Simulator Professional Edition | Crafted with advanced web technologies</p>
+        <p>Featuring: CSS3 Animations, JavaScript Audio APIs, Canvas Graphics, Progressive Enhancement</p>
+    </footer>
+
+    <script>
+        class VHSSimulator {
+            constructor() {
+                this.isPowered = false;
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.isRecording = false;
+                this.currentTime = 0;
+                this.channel = 3;
+                this.volume = 50;
+                this.tracking = 0;
+                this.staticLevel = 0;
+                
+                this.channels = [
+                    "Signal Lost", "News Channel", "Movie Channel", "Sports Network", 
+                    "Music Videos", "Cartoons", "Documentary", "Classic Films",
+                    "Static Noise", "Weather Channel"
+                ];
+                
+                this.movieTitles = [
+                    "BLADE RUNNER 2049", "THE MATRIX RELOADED", "GHOST IN THE SHELL",
+                    "AKIRA", "TRON LEGACY", "MINORITY REPORT", "EX MACHINA",
+                    "READY PLAYER ONE", "CYBERPUNK 2077", "NEON GENESIS"
+                ];
+
+                this.initializeElements();
+                this.bindEvents();
+                this.startAnimations();
+                this.updateDisplay();
+            }
+
+            initializeElements() {
+                // Control buttons
+                this.powerBtn = document.getElementById('powerBtn');
+                this.playBtn = document.getElementById('playBtn');
+                this.stopBtn = document.getElementById('stopBtn');
+                this.pauseBtn = document.getElementById('pauseBtn');
+                this.rewindBtn = document.getElementById('rewindBtn');
+                this.fastForwardBtn = document.getElementById('fastForwardBtn');
+                this.recordBtn = document.getElementById('recordBtn');
+                this.ejectBtn = document.getElementById('ejectBtn');
+                this.channelBtn = document.getElementById('channelBtn');
+                this.glitchBtn = document.getElementById('glitchBtn');
+
+                // Sliders
+                this.volumeSlider = document.getElementById('volumeSlider');
+                this.trackingSlider = document.getElementById('trackingSlider');
+                this.staticSlider = document.getElementById('staticSlider');
+
+                // Displays
+                this.videoContent = document.getElementById('videoContent');
+                this.tapeCounter = document.getElementById('tapeCounter');
+                this.channelDisplay = document.getElementById('channelDisplay');
+                this.staticOverlay = document.getElementById('staticOverlay');
+                this.glitchOverlay = document.getElementById('glitchOverlay');
+
+                // Status lights
+                this.powerLight = document.getElementById('powerLight');
+                this.recordLight = document.getElementById('recordLight');
+                this.playLight = document.getElementById('playLight');
+                this.pauseLight = document.getElementById('pauseLight');
+
+                // Audio visualizer
+                this.visualizerBars = document.querySelectorAll('.visualizer-bar');
+            }
+
+            bindEvents() {
+                this.powerBtn.addEventListener('click', () => this.togglePower());
+                this.playBtn.addEventListener('click', () => this.play());
+                this.stopBtn.addEventListener('click', () => this.stop());
+                this.pauseBtn.addEventListener('click', () => this.pause());
+                this.rewindBtn.addEventListener('click', () => this.rewind());
+                this.fastForwardBtn.addEventListener('click', () => this.fastForward());
+                this.recordBtn.addEventListener('click', () => this.record());
+                this.ejectBtn.addEventListener('click', () => this.eject());
+                this.channelBtn.addEventListener('click', () => this.changeChannel());
+                this.glitchBtn.addEventListener('click', () => this.triggerGlitch());
+
+                this.volumeSlider.addEventListener('input', (e) => {
+                    this.volume = e.target.value;
+                    document.getElementById('volumeValue').textContent = this.volume;
+                });
+
+                this.trackingSlider.addEventListener('input', (e) => {
+                    this.tracking = e.target.value;
+                    document.getElementById('trackingValue').textContent = this.tracking;
+                    this.applyTrackingEffect();
+                });
+
+                this.staticSlider.addEventListener('input', (e) => {
+                    this.staticLevel = e.target.value;
+                    document.getElementById('staticValue').textContent = this.staticLevel;
+                    this.applyStaticEffect();
+                });
+            }
+
+            togglePower() {
+                this.isPowered = !this.isPowered;
+                this.powerBtn.classList.toggle('active', this.isPowered);
+                this.powerLight.classList.toggle('active', this.isPowered);
+                
+                if (this.isPowered) {
+                    this.bootUp();
+                } else {
+                    this.shutDown();
+                }
+            }
+
+            bootUp() {
+                this.videoContent.innerHTML = `
+                    <div class="loading">
+                        <i class="fas fa-power-off" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
+                        SYSTEM INITIALIZING...<br>
+                        <div style="font-size: 1rem; margin-top: 10px;">
+                            ▓▓▓▓▓▓▓▓▓▓ 100%
+                        </div>
+                    </div>
+                `;
+                
+                setTimeout(() => {
+                    this.displayChannel();
+                }, 2000);
+            }
+
+            shutDown() {
+                this.stop();
+                this.videoContent.innerHTML = `
+                    <div style="color: #666;">
+                        <i class="fas fa-power-off" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>
+                        SYSTEM OFFLINE
+                    </div>
+                `;
+                this.resetStatusLights();
+            }
+
+            play() {
+                if (!this.isPowered) return;
+                
+                this.isPlaying = true;
+                this.isPaused = false;
+                this.playBtn.classList.add('active');
+                this.pauseBtn.classList.remove('active');
+                this.playLight.classList.add('active');
+                this.pauseLight.classList.remove('active');
+                
+                this.startTapeCounter();
+                this.displayMovie();
+            }
+
+            stop() {
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.currentTime = 0;
+                this.playBtn.classList.remove('active');
+                this.pauseBtn.classList.remove('active');
+                this.playLight.classList.remove('active');
+                this.pauseLight.classList.remove('active');
+                
+                if (this.isPowered) {
+                    this.displayChannel();
+                }
+            }
+
+            pause() {
+                if (!this.isPowered || !this.isPlaying) return;
+                
+                this.isPaused = !this.isPaused;
+                this.pauseBtn.classList.toggle('active', this.isPaused);
+                this.pauseLight.classList.toggle('active', this.isPaused);
+                
+                if (this.isPaused) {
+                    this.videoContent.innerHTML += '<div style="position: absolute; top: 10px; right: 10px; font-size: 1.5rem;">⏸️</div>';
+                } else {
+                    this.displayMovie();
+                }
+            }
+
+            rewind() {
+                if (!this.isPowered) return;
+                
+                this.triggerRewindEffect();
+                this.currentTime = Math.max(0, this.currentTime - 30);
+                this.updateTapeCounter();
+            }
+
+            fastForward() {
+                if (!this.isPowered) return;
+                
+                this.triggerFastForwardEffect();
+                this.currentTime += 30;
+                this.updateTapeCounter();
+            }
+
+            record() {
+                if (!this.isPowered) return;
+                
+                this.isRecording = !this.isRecording;
+                this.recordBtn.classList.toggle('active', this.isRecording);
+                this.recordLight.classList.toggle('active', this.isRecording);
+                
+                if (this.isRecording) {
+                    this.videoContent.innerHTML = `
+                        <div style="color: #ff0000;">
+                            <i class="fas fa-circle" style="font-size: 2rem; margin-bottom: 15px; display: block; animation: pulse 1s infinite;"></i>
+                            RECORDING<br>
+                            <div style="font-size: 1rem; margin-top: 10px;">
+                                CH ${this.channel.toString().padStart(2, '0')}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            eject() {
+                if (!this.isPowered) return;
+                
+                this.stop();
+                this.triggerEjectEffect();
+                
+                setTimeout(() => {
+                    if (this.isPowered) {
+                        this.videoContent.innerHTML = `
+                            <div>
+                                <i class="fas fa-eject" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>
+                                NO TAPE<br>
+                                <span style="font-size: 1rem; color: #666;">Insert VHS cassette</span>
+                            </div>
+                        `;
+                    }
+                }, 1500);
+            }
+
+            changeChannel() {
+                if (!this.isPowered) return;
+                
+                this.channel = (this.channel % 10) + 1;
+                this.channelDisplay.textContent = `CH ${this.channel.toString().padStart(2, '0')}`;
+                
+                this.triggerChannelChangeEffect();
+                
+                setTimeout(() => {
+                    if (!this.isPlaying) {
+                        this.displayChannel();
+                    }
+                }, 500);
+            }
+
+            triggerGlitch() {
+                this.glitchOverlay.style.opacity = '0.8';
+                this.glitchOverlay.style.animation = 'none';
+                this.glitchOverlay.offsetHeight; // Trigger reflow
+                this.glitchOverlay.style.animation = 'glitchEffect 0.3s ease-out';
+                
+                setTimeout(() => {
+                    this.glitchOverlay.style.opacity = '0';
+                }, 300);
+
+                // Add glitch to video content
+                const originalContent = this.videoContent.innerHTML;
+                this.videoContent.style.transform = 'skew(2deg, 0deg)';
+                this.videoContent.style.filter = 'hue-rotate(180deg) saturate(2)';
+                
+                setTimeout(() => {
+                    this.videoContent.style.transform = '';
+                    this.videoContent.style.filter = '';
+                }, 300);
+            }
+
+            displayChannel() {
+                const channelContent = this.channels[this.channel % this.channels.length];
+                
+                switch(channelContent) {
+                    case "Signal Lost":
+                        this.videoContent.innerHTML = `
+                            <div style="color: #666;">
+                                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>
+                                SIGNAL LOST<br>
+                                <span style="font-size: 1rem;">Please adjust antenna</span>
+                            </div>
+                        `;
+                        break;
+                    case "Static Noise":
+                        this.videoContent.innerHTML = `
+                            <div style="color: #888;">
+                                <div style="font-size: 4rem; margin-bottom: 20px;">▓▒░</div>
+                                STATIC<br>
+                                <span style="font-size: 1rem;">No signal detected</span>
+                            </div>
+                        `;
+                        this.staticOverlay.style.opacity = '0.3';
+                        break;
+                    default:
+                        this.videoContent.innerHTML = `
+                            <div>
+                                <i class="fas fa-tv" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>
+                                ${channelContent.toUpperCase()}<br>
+                                <span style="font-size: 1rem; color: #666;">Channel ${this.channel}</span>
+                            </div>
+                        `;
+                        this.staticOverlay.style.opacity = '0';
+                }
+            }
+
+            displayMovie() {
+                if (!this.isPlaying || this.isPaused) return;
+                
+                const movieTitle = this.movieTitles[Math.floor(Math.random() * this.movieTitles.length)];
+                this.videoContent.innerHTML = `
+                    <div>
+                        <i class="fas fa-play" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
+                        NOW PLAYING<br>
+                        <div style="font-size: 1.5rem; margin: 10px 0; color: #ff6b35;">${movieTitle}</div>
+                        <div style="font-size: 0.9rem; color: #666;">
+                            Runtime: ${Math.floor(Math.random() * 60 + 90)} min
+                        </div>
+                    </div>
+                `;
+                this.staticOverlay.style.opacity = '0';
+            }
+
+            startTapeCounter() {
+                if (this.tapeInterval) clearInterval(this.tapeInterval);
+                
+                this.tapeInterval = setInterval(() => {
+                    if (this.isPlaying && !this.isPaused) {
+                        this.currentTime++;
+                        this.updateTapeCounter();
+                    }
+                }, 1000);
+            }
+
+            updateTapeCounter() {
+                const hours = Math.floor(this.currentTime / 3600);
+                const minutes = Math.floor((this.currentTime % 3600) / 60);
+                const seconds = this.currentTime % 60;
+                
+                this.tapeCounter.textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            applyTrackingEffect() {
+                const trackingValue = this.tracking;
+                this.videoContent.style.transform = `translateY(${trackingValue * 0.5}px)`;
+                this.videoContent.style.filter = `blur(${Math.abs(trackingValue) * 0.1}px)`;
+            }
+
+            applyStaticEffect() {
+                this.staticOverlay.style.opacity = this.staticLevel / 100;
+            }
+
+            triggerRewindEffect() {
+                this.videoContent.style.animation = 'rewindEffect 0.5s ease-in-out';
+                setTimeout(() => {
+                    this.videoContent.style.animation = '';
+                }, 500);
+            }
+
+            triggerFastForwardEffect() {
+                this.videoContent.style.animation = 'fastForwardEffect 0.5s ease-in-out';
+                setTimeout(() => {
+                    this.videoContent.style.animation = '';
+                }, 500);
+            }
+
+            triggerChannelChangeEffect() {
+                this.staticOverlay.style.opacity = '0.8';
+                setTimeout(() => {
+                    this.staticOverlay.style.opacity = this.staticLevel / 100;
+                }, 500);
+            }
+
+            triggerEjectEffect() {
+                this.videoContent.style.transform = 'translateX(-100%)';
+                this.videoContent.style.transition = 'transform 1s ease-in-out';
+                
+                setTimeout(() => {
+                    this.videoContent.style.transform = 'translateX(100%)';
+                }, 500);
+                
+                setTimeout(() => {
+                    this.videoContent.style.transform = '';
+                    this.videoContent.style.transition = '';
+                }, 1500);
+            }
+
+            resetStatusLights() {
+                this.powerLight.classList.remove('active');
+                this.recordLight.classList.remove('active');
+                this.playLight.classList.remove('active');
+                this.pauseLight.classList.remove('active');
+                
+                this.playBtn.classList.remove('active');
+                this.pauseBtn.classList.remove('active');
+                this.recordBtn.classList.remove('active');
+            }
+
+            startAnimations() {
+                // Animate visualizer bars
+                setInterval(() => {
+                    this.visualizerBars.forEach(bar => {
+                        const height = Math.random() * 40 + 5;
+                        bar.style.height = `${height}px`;
+                    });
+                }, 200);
+
+                // Periodic glitch effects for authenticity
+                setInterval(() => {
+                    if (this.isPowered && Math.random() < 0.1) {
+                        this.triggerMinorGlitch();
+                    }
+                }, 5000);
+            }
+
+            triggerMinorGlitch() {
+                this.videoContent.style.textShadow = '2px 0 #ff0000, -2px 0 #00ff00';
+                setTimeout(() => {
+                    this.videoContent.style.textShadow = '0 0 10px #00ff41';
+                }, 100);
+            }
+
+            updateDisplay() {
+                this.channelDisplay.textContent = `CH ${this.channel.toString().padStart(2, '0')}`;
+                document.getElementById('volumeValue').textContent = this.volume;
+                document.getElementById('trackingValue').textContent = this.tracking;
+                document.getElementById('staticValue').textContent = this.staticLevel;
+            }
+        }
+
+        // Additional CSS animations
+        const additionalStyles = `
+            @keyframes glitchEffect {
+                0% { 
+                    transform: translate(0);
+                    filter: hue-rotate(0deg);
+                }
+                20% { 
+                    transform: translate(-2px, 2px);
+                    filter: hue-rotate(90deg);
+                }
+                40% { 
+                    transform: translate(-2px, -2px);
+                    filter: hue-rotate(180deg);
+                }
+                60% { 
+                    transform: translate(2px, 2px);
+                    filter: hue-rotate(270deg);
+                }
+                80% { 
+                    transform: translate(2px, -2px);
+                    filter: hue-rotate(360deg);
+                }
+                100% { 
+                    transform: translate(0);
+                    filter: hue-rotate(0deg);
+                }
+            }
+
+            @keyframes rewindEffect {
+                0% { transform: scale(1) rotate(0deg); }
+                50% { transform: scale(0.8) rotate(-5deg); }
+                100% { transform: scale(1) rotate(0deg); }
+            }
+
+            @keyframes fastForwardEffect {
+                0% { transform: scale(1) rotate(0deg); }
+                50% { transform: scale(1.1) rotate(5deg); }
+                100% { transform: scale(1) rotate(0deg); }
+            }
+
+            .control-btn:hover i {
+                animation: buttonHover 0.3s ease;
+            }
+
+            @keyframes buttonHover {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+
+            .video-content {
+                transition: all 0.3s ease;
+            }
+
+            .slider:hover::-webkit-slider-thumb {
+                transform: scale(1.2);
+                box-shadow: 0 0 15px rgba(0, 255, 65, 0.8);
+            }
+
+            .tape-counter {
+                position: relative;
+                overflow: hidden;
+            }
+
+            .tape-counter::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.3), transparent);
+                animation: counterScan 3s infinite;
+            }
+
+            @keyframes counterScan {
+                0% { left: -100%; }
+                100% { left: 100%; }
+            }
+        `;
+
+        // Inject additional styles
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = additionalStyles;
+        document.head.appendChild(styleSheet);
+
+        // Initialize VHS Simulator
+        document.addEventListener('DOMContentLoaded', () => {
+            window.vhsSimulator = new VHSSimulator();
+        });
+
+        // Add keyboard shortcuts for professional feel
+        document.addEventListener('keydown', (e) => {
+            if (!window.vhsSimulator) return;
+
+            switch(e.key) {
+                case ' ':
+                    e.preventDefault();
+                    if (window.vhsSimulator.isPlaying) {
+                        window.vhsSimulator.pause();
+                    } else {
+                        window.vhsSimulator.play();
+                    }
+                    break;
+                case 's':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        window.vhsSimulator.stop();
+                    }
+                    break;
+                case 'r':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        window.vhsSimulator.rewind();
+                    }
+                    break;
+                case 'f':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        window.vhsSimulator.fastForward();
+                    }
+                    break;
+                case 'c':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        window.vhsSimulator.changeChannel();
+                    }
+                    break;
+                case 'g':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        window.vhsSimulator.triggerGlitch();
+                    }
+                    break;
+            }
+        });
+
+        // Add touch gestures for mobile support
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            if (!window.vhsSimulator) return;
+
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = touchEndY - touchStartY;
+
+            // Swipe gestures
+            if (Math.abs(deltaX) > 50) {
+                if (deltaX > 0) {
+                    window.vhsSimulator.fastForward();
+                } else {
+                    window.vhsSimulator.rewind();
+                }
+            }
+
+            if (Math.abs(deltaY) > 50) {
+                if (deltaY > 0) {
+                    window.vhsSimulator.changeChannel();
+                } else {
+                    window.vhsSimulator.triggerGlitch();
+                }
+            }
+        });
+
+        // Add performance monitoring for professional assessment
+        if (typeof PerformanceObserver !== 'undefined') {
+            const observer = new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    if (entry.entryType === 'measure') {
+                        console.log(`VHS Simulator - ${entry.name}: ${entry.duration.toFixed(2)}ms`);
+                    }
+                }
+            });
+            observer.observe({entryTypes: ['measure']});
+        }
+    </script>
+</body>
+</html>
