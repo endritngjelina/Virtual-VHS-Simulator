@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VHS Simulator Pro</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            font-family: 'Orbitron', monospace;
+            color: #00ff41;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        
+        .vhs-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(ellipse at center, #1a1a1a 0%, #000000 100%);
+        }
+        
+        /* Scanlines Effect */
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 65, 0.03) 2px,
+                rgba(0, 255, 65, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* Static Noise */
+        .noise {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><filter id="noise"><feTurbulence baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter></defs><rect width="100%" height="100%" filter="url(%23noise)" opacity="0.1"/></svg>');
+            opacity: 0;
+            pointer-events: none;
+            z-index: 999;
+            transition: opacity 0.3s;
+        }
+        
+        /* VHS Player Interface */
+        .vhs-player {
+            position: relative;
+            width: 90%;
+            max-width: 1200px;
+            height: 80vh;
+            margin: 5vh auto;
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            border-radius: 20px;
+            border: 3px solid #333;
+            box-shadow: 
+                0 0 50px rgba(0, 255, 65, 0.2),
+                inset 0 0 30px rgba(0, 0, 0, 0.8),
+                0 20px 40px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .vhs-player:hover {
+            transform: translateY(-5px);
+            box-shadow: 
+                0 0 70px rgba(0, 255, 65, 0.3),
+                inset 0 0 30px rgba(0, 0, 0, 0.8),
+                0 30px 60px rgba(0, 0, 0, 0.8);
+        }
+        
+        /* Screen Area */
+        .screen {
+            position: relative;
+            width: 85%;
+            height: 60%;
+            margin: 5% auto 3% auto;
+            background: #000;
+            border: 8px solid #333;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 
+                inset 0 0 40px rgba(0, 0, 0, 0.9),
+                0 0 20px rgba(0, 255, 65, 0.1),
+                inset 0 0 100px rgba(0, 30, 10, 0.3);
+            transition: all 0.4s ease;
+        }
+        
+        .screen:hover {
+            box-shadow: 
+                inset 0 0 40px rgba(0, 0, 0, 0.9),
+                0 0 30px rgba(0, 255, 65, 0.2),
+                inset 0 0 100px rgba(0, 40, 15, 0.4);
+            border-color: #444;
+        }
+        
+        .screen::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .screen::after {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            height: 3px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(0, 255, 65, 0.3) 20%, 
+                rgba(0, 255, 65, 0.1) 80%, 
+                transparent 100%);
+            border-radius: 2px;
+            animation: scanBeam 3s infinite linear;
+            pointer-events: none;
+            z-index: 6;
+        }
+        
+        @keyframes scanBeam {
+            0% { transform: translateY(0) scaleX(0); opacity: 0; }
+            10% { transform: translateY(0) scaleX(1); opacity: 1; }
+            90% { transform: translateY(calc(60vh - 100px)) scaleX(0.3); opacity: 0.5; }
+            100% { transform: translateY(calc(60vh - 80px)) scaleX(0); opacity: 0; }
+        }
+        
+        .screen-content {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #001a0d, #003d1a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            filter: blur(0px) contrast(1.2) saturate(1.5);
+            transition: all 0.3s ease;
+        }
+        
+        .video-overlay {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent 0px,
+                rgba(255, 255, 255, 0.02) 2px,
+                transparent 4px
+            );
+            mix-blend-mode: overlay;
+        }
+        
+        /* VHS Text Display */
+        .vhs-text {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 2.5rem;
+            color: #00ff41;
+            text-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px #00ff41,
+                0 0 40px #00ff41;
+            animation: textGlitch 3s infinite;
+            z-index: 10;
+            position: relative;
+        }
+        
+        @keyframes textGlitch {
+            0%, 96% { transform: translate(0); }
+            1% { transform: translate(2px, -1px); }
+            2% { transform: translate(-1px, 2px); }
+            3% { transform: translate(0); }
+            97% { transform: translate(-1px, 1px); }
+            98% { transform: translate(2px, -2px); }
+            99% { transform: translate(0); }
+        }
+        
+        /* Control Panel */
+        .controls {
+            position: absolute;
+            bottom: 8%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
+            padding: 20px 35px;
+            border-radius: 20px;
+            border: 2px solid #333;
+            box-shadow: 
+                0 10px 25px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                0 0 30px rgba(0, 255, 65, 0.1);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .controls::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(145deg, transparent, rgba(0, 255, 65, 0.05));
+            border-radius: 18px;
+            pointer-events: none;
+        }
+        
+        .controls:hover {
+            transform: translateX(-50%) translateY(-3px);
+            box-shadow: 
+                0 15px 35px rgba(0, 0, 0, 0.8),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                0 0 40px rgba(0, 255, 65, 0.2);
+        }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            color: #00ff41;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 
+                0 4px 8px rgba(0, 0, 0, 0.3),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+                0 0 0 0 rgba(0, 255, 65, 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .control-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(0, 255, 65, 0.3) 0%, transparent 70%);
+            border-radius: 50%;
+            transition: all 0.4s ease;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 
+                0 8px 16px rgba(0, 255, 65, 0.3),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+                0 0 20px 2px rgba(0, 255, 65, 0.2);
+            color: #33ff66;
+        }
+        
+        .control-btn:hover::before {
+            width: 120%;
+            height: 120%;
+        }
+        
+        .control-btn:active {
+            transform: translateY(0) scale(0.95);
+            box-shadow: 
+                0 2px 4px rgba(0, 0, 0, 0.3),
+                inset 0 2px 4px rgba(0, 0, 0, 0.5);
+            transition: all 0.1s ease;
+        }
+        
+        .control-btn.active {
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            color: #000;
+            text-shadow: none;
+            animation: pulse 2s infinite;
+        }
+        
+        .control-btn.active::before {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { 
+                box-shadow: 
+                    0 4px 8px rgba(0, 255, 65, 0.5),
+                    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+                    0 0 15px rgba(0, 255, 65, 0.4);
+            }
+            50% { 
+                box-shadow: 
+                    0 6px 12px rgba(0, 255, 65, 0.7),
+                    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+                    0 0 25px rgba(0, 255, 65, 0.6);
+            }
+        }
+        
+        /* Time Display */
+        .time-display {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.5rem;
+            color: #00ff41;
+            background: linear-gradient(145deg, #000, #1a1a1a);
+            padding: 12px 22px;
+            border-radius: 12px;
+            border: 2px solid #333;
+            min-width: 150px;
+            text-align: center;
+            text-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px rgba(0, 255, 65, 0.5);
+            box-shadow: 
+                inset 0 2px 4px rgba(0, 0, 0, 0.8),
+                0 2px 8px rgba(0, 255, 65, 0.2);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .time-display::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(0, 255, 65, 0.1) 50%, 
+                transparent 100%);
+            animation: timeGlow 4s infinite;
+        }
+        
+        @keyframes timeGlow {
+            0% { left: -100%; }
+            50% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .time-display:hover {
+            transform: scale(1.05);
+            text-shadow: 
+                0 0 15px #00ff41,
+                0 0 30px rgba(0, 255, 65, 0.7);
+        }
+        
+        /* Status Indicators */
+        .status-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.9rem;
+            color: #00ff41;
+            transition: all 0.3s ease;
+            padding: 5px 8px;
+            border-radius: 6px;
+        }
+        
+        .status-item:hover {
+            background: rgba(0, 255, 65, 0.1);
+            transform: translateX(-3px);
+        }
+        
+        .status-led {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ff0000;
+            box-shadow: 
+                0 0 10px #ff0000,
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            animation: ledBlink 2s infinite;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .status-led::before {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .status-led.active {
+            background: #00ff41;
+            box-shadow: 
+                0 0 15px #00ff41,
+                0 0 25px rgba(0, 255, 65, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            animation: none;
+        }
+        
+        @keyframes ledBlink {
+            0%, 50% { 
+                opacity: 1; 
+                box-shadow: 
+                    0 0 10px #ff0000,
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            }
+            51%, 100% { 
+                opacity: 0.3; 
+                box-shadow: 
+                    0 0 5px #ff0000,
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            }
+        }
+        
+        /* Channel Display */
+        .channel-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-family: 'Orbitron', monospace;
+            font-size: 3rem;
+            font-weight: 900;
+            color: #00ff41;
+            text-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px #00ff41,
+                0 0 40px rgba(0, 255, 65, 0.5);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transform: scale(0.8) translateY(-20px);
+            background: linear-gradient(145deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6));
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid rgba(0, 255, 65, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        .channel-display.visible {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+        
+        .channel-display::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, 
+                #00ff41, 
+                transparent, 
+                #00ff41, 
+                transparent, 
+                #00ff41);
+            border-radius: 12px;
+            z-index: -1;
+            opacity: 0;
+            animation: borderGlow 2s infinite;
+        }
+        
+        @keyframes borderGlow {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Glitch Effect */
+        .glitch {
+            animation: glitch 0.5s;
+        }
+        
+        @keyframes glitch {
+            0% { transform: translate(0); filter: hue-rotate(0deg); }
+            10% { transform: translate(-2px, -2px); filter: hue-rotate(90deg); }
+            20% { transform: translate(2px, 2px); filter: hue-rotate(180deg); }
+            30% { transform: translate(-2px, 2px); filter: hue-rotate(270deg); }
+            40% { transform: translate(2px, -2px); filter: hue-rotate(360deg); }
+            50% { transform: translate(-2px, -2px); filter: hue-rotate(90deg); }
+            60% { transform: translate(2px, 2px); filter: hue-rotate(180deg); }
+            70% { transform: translate(-2px, 2px); filter: hue-rotate(270deg); }
+            80% { transform: translate(2px, -2px); filter: hue-rotate(360deg); }
+            90% { transform: translate(-2px, -2px); filter: hue-rotate(0deg); }
+            100% { transform: translate(0); filter: hue-rotate(0deg); }
+        }
+        
+        /* Volume Control */
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 25px;
+            border: 1px solid #333;
+            transition: all 0.3s ease;
+        }
+        
+        .volume-control:hover {
+            background: rgba(0, 0, 0, 0.8);
+            border-color: #00ff41;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.2);
+        }
+        
+        .volume-control span {
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .volume-control:hover span {
+            color: #33ff66;
+            filter: drop-shadow(0 0 5px #00ff41);
+        }
+        
+        .volume-slider {
+            width: 120px;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #333, #555);
+            outline: none;
+            -webkit-appearance: none;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .volume-slider:hover {
+            background: linear-gradient(to right, #444, #666);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+        
+        .volume-slider::-webkit-slider-track {
+            height: 8px;
+            background: transparent;
+        }
+        
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            cursor: pointer;
+            box-shadow: 
+                0 0 10px #00ff41,
+                0 2px 4px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            border: 2px solid #003d1a;
+        }
+        
+        .volume-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 
+                0 0 20px #00ff41,
+                0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+        
+        .volume-slider::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            cursor: pointer;
+            box-shadow: 0 0 10px #00ff41;
+            border: 2px solid #003d1a;
+        }
+        
+        /* Loading Animation */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border: 3px solid #333;
+            border-top: 3px solid #00ff41;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            opacity: 0;
+        }
+        
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .vhs-player {
+                width: 95%;
+                height: 85vh;
+                margin: 2.5vh auto;
+            }
+            
+            .controls {
+                gap: 15px;
+                padding: 10px 20px;
+            }
+            
+            .control-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 16px;
+            }
+            
+            .vhs-text {
+                font-size: 1.8rem;
+            }
+            
+            .time-display {
+                font-size: 1.2rem;
+                padding: 8px 16px;
+                min-width: 120px;
+            }
+            
+            .channel-display {
+                font-size: 2rem;
+            }
+        }
+        
+        /* Background Particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: #00ff41;
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 6s infinite linear;
+        }
+        
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-10px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="vhs-container">
+        <div class="scanlines"></div>
+        <div class="noise" id="noise"></div>
+        <div class="particles" id="particles"></div>
+        
+        <div class="vhs-player">
+            <div class="channel-display" id="channelDisplay">CH 03</div>
+            
+            <div class="status-panel">
+                <div class="status-item">
+                    <div class="status-led" id="recordLed"></div>
+                    <span>REC</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-led active" id="powerLed"></div>
+                    <span>PWR</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-led" id="playLed"></div>
+                    <span>PLAY</span>
+                </div>
+            </div>
+            
+            <div class="screen">
+                <div class="screen-content" id="screenContent">
+                    <div class="video-overlay"></div>
+                    <div class="vhs-text" id="vhsText">VHS SIMULATOR</div>
+                    <div class="loading" id="loading"></div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="control-btn" id="recordBtn" title="Record">⏺</button>
+                <button class="control-btn" id="rewindBtn" title="Rewind">⏪</button>
+                <button class="control-btn" id="playBtn" title="Play">▶</button>
+                <button class="control-btn" id="pauseBtn" title="Pause">⏸</button>
+                <button class="control-btn" id="stopBtn" title="Stop">⏹</button>
+                <button class="control-btn" id="fastForwardBtn" title="Fast Forward">⏩</button>
+                <button class="control-btn" id="ejectBtn" title="Eject">⏏</button>
+                
+                <div class="time-display" id="timeDisplay">00:00:00</div>
+                
+                <div class="volume-control">
+                    <span>🔊</span>
+                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="75">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class VHSSimulator {
+            constructor() {
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.isRecording = false;
+                this.currentTime = 0;
+                this.totalTime = 3600; // 1 hour
+                this.volume = 75;
+                this.currentChannel = 3;
+                this.channels = [
+                    "STATIC",
+                    "TEST SIGNAL",
+                    "VHS SIMULATOR",
+                    "RETRO WAVE",
+                    "NEON DREAMS",
+                    "CYBER PUNK",
+                    "ANALOG SOUL"
+                ];
+                
+                this.initializeElements();
+                this.bindEvents();
+                this.startBackgroundEffects();
+                this.updateDisplay();
+            }
+            
+            initializeElements() {
+                this.elements = {
+                    recordBtn: document.getElementById('recordBtn'),
+                    rewindBtn: document.getElementById('rewindBtn'),
+                    playBtn: document.getElementById('playBtn'),
+                    pauseBtn: document.getElementById('pauseBtn'),
+                    stopBtn: document.getElementById('stopBtn'),
+                    fastForwardBtn: document.getElementById('fastForwardBtn'),
+                    ejectBtn: document.getElementById('ejectBtn'),
+                    timeDisplay: document.getElementById('timeDisplay'),
+                    volumeSlider: document.getElementById('volumeSlider'),
+                    screenContent: document.getElementById('screenContent'),
+                    vhsText: document.getElementById('vhsText'),
+                    loading: document.getElementById('loading'),
+                    noise: document.getElementById('noise'),
+                    recordLed: document.getElementById('recordLed'),
+                    playLed: document.getElementById('playLed'),
+                    channelDisplay: document.getElementById('channelDisplay'),
+                    particles: document.getElementById('particles')
+                };
+            }
+            
+            bindEvents() {
+                this.elements.playBtn.addEventListener('click', () => this.play());
+                this.elements.pauseBtn.addEventListener('click', () => this.pause());
+                this.elements.stopBtn.addEventListener('click', () => this.stop());
+                this.elements.recordBtn.addEventListener('click', () => this.record());
+                this.elements.rewindBtn.addEventListener('click', () => this.rewind());
+                this.elements.fastForwardBtn.addEventListener('click', () => this.fastForward());
+                this.elements.ejectBtn.addEventListener('click', () => this.eject());
+                this.elements.volumeSlider.addEventListener('input', (e) => this.setVolume(e.target.value));
+                
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+                
+                // Channel switching (click on screen)
+                this.elements.screenContent.addEventListener('click', () => this.switchChannel());
+            }
+            
+            play() {
+                if (this.isPaused) {
+                    this.isPaused = false;
+                } else if (!this.isPlaying) {
+                    this.isPlaying = true;
+                    this.showLoading();
+                    
+                    setTimeout(() => {
+                        this.hideLoading();
+                        this.startPlayback();
+                    }, 1500);
+                }
+                
+                this.elements.playLed.classList.add('active');
+                this.elements.playBtn.classList.add('active');
+                this.updateButtons();
+            }
+            
+            pause() {
+                this.isPaused = true;
+                this.elements.playBtn.classList.remove('active');
+                this.elements.pauseBtn.classList.add('active');
+                this.addGlitchEffect();
+                this.updateButtons();
+            }
+            
+            stop() {
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.currentTime = 0;
+                this.elements.playLed.classList.remove('active');
+                this.clearActiveButtons();
+                this.elements.stopBtn.classList.add('active');
+                this.addGlitchEffect();
+                this.updateDisplay();
+                
+                setTimeout(() => {
+                    this.elements.stopBtn.classList.remove('active');
+                }, 200);
+            }
+            
+            record() {
+                this.isRecording = !this.isRecording;
+                
+                if (this.isRecording) {
+                    this.elements.recordLed.classList.add('active');
+                    this.elements.recordBtn.classList.add('active');
+                    this.elements.vhsText.textContent = 'RECORDING';
+                    this.addStaticEffect();
+                } else {
+                    this.elements.recordLed.classList.remove('active');
+                    this.elements.recordBtn.classList.remove('active');
+                    this.elements.vhsText.textContent = this.channels[this.currentChannel];
+                    this.removeStaticEffect();
+                }
+            }
+            
+            rewind() {
+                this.addGlitchEffect();
+                this.elements.rewindBtn.classList.add('active');
+                
+                const rewindInterval = setInterval(() => {
+                    this.currentTime = Math.max(0, this.currentTime - 10);
+                    this.updateDisplay();
+                }, 50);
+                
+                setTimeout(() => {
+                    clearInterval(rewindInterval);
+                    this.elements.rewindBtn.classList.remove('active');
+                }, 1000);
+            }
+            
+            fastForward() {
+                this.addGlitchEffect();
+                this.elements.fastForwardBtn.classList.add('active');
+                
+                const ffInterval = setInterval(() => {
+                    this.currentTime = Math.min(this.totalTime, this.currentTime + 10);
+                    this.updateDisplay();
+                }, 50);
+                
+                setTimeout(() => {
+                    clearInterval(ffInterval);
+                    this.elements.fastForwardBtn.classList.remove('active');
+                }, 1000);
+            }
+            
+            eject() {
+                this.addGlitchEffect();
+                this.elements.ejectBtn.classList.add('active');
+                
+                // Simulate tape ejection
+                this.elements.screenContent.style.transform = 'translateY(-20px)';
+                this.elements.vhsText.textContent = 'TAPE EJECTED';
+                
+                setTimeout(() => {
+                    this.elements.screenContent.style.transform = 'translateY(0)';
+                    this.elements.vhsText.textContent = 'INSERT TAPE';
+                    this.elements.ejectBtn.classList.remove('active');
+                }, 2000);
+                
+                setTimeout(() => {
+                    this.elements.vhsText.textContent = this.channels[this.currentChannel];
+                }, 4000);
+            }
+            
+            setVolume(value) {
+                this.volume = value;
+                // Visual volume feedback
+                const intensity = value / 100;
+                this.elements.screenContent.style.filter = `blur(${(1-intensity)*2}px) contrast(${0.8 + intensity*0.4}) saturate(${0.8 + intensity*0.7})`;
+            }
+            
+            switchChannel() {
+                this.currentChannel = (this.currentChannel + 1) % this.channels.length;
+                this.elements.channelDisplay.textContent = `CH ${String(this.currentChannel).padStart(2, '0')}`;
+                this.elements.channelDisplay.classList.add('visible');
+                
+                this.addGlitchEffect();
+                this.addStaticEffect(300);
+                
+                setTimeout(() => {
+                    this.elements.vhsText.textContent = this.channels[this.currentChannel];
+                    this.elements.channelDisplay.classList.remove('visible');
+                }, 2000);
+            }
+            
+            handleKeyboard(e) {
+                switch(e.code) {
+                    case 'Space':
+                        e.preventDefault();
+                        this.isPlaying ? this.pause() : this.play();
+                        break;
+                    case 'KeyS':
+                        this.stop();
+                        break;
+                    case 'KeyR':
+                        this.record();
+                        break;
+                    case 'ArrowLeft':
+                        this.rewind();
+                        break;
+                    case 'ArrowRight':
+                        this.fastForward();
+                        break;
+                    case 'KeyC':
+                        this.switchChannel();
+                        break;
+                    case 'KeyE':
+                        this.eject();
+                        break;
+                }
+            }
+            
+            startPlayback() {
+                if (this.playbackInterval) clearInterval(this.playbackInterval);
+                
+                this.playbackInterval = setInterval(() => {
+                    if (this.isPlaying && !this.isPaused) {
+                        this.currentTime++;
+                        if (this.currentTime >= this.totalTime) {
+                            this.currentTime = 0;
+                        }
+                        this.updateDisplay();
+                    }
+                }, 1000);
+            }
+            
+            updateDisplay() {
+                const hours = Math.floor(this.currentTime / 3600);
+                const minutes = Math.floor((this.currentTime % 3600) / 60);
+                const seconds = this.currentTime % 60;
+                
+                this.elements.timeDisplay.textContent = 
+                    `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            
+            updateButtons() {
+                // Remove all active states except for the current operation
+                if (!this.isPlaying || this.isPaused) {
+                    this.elements.playBtn.classList.remove('active');
+                }
+                if (!this.isPaused) {
+                    this.elements.pauseBtn.classList.remove('active');
+                }
+            }
+            
+            clearActiveButtons() {
+                document.querySelectorAll('.control-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+            }
+            
+            showLoading() {
+                this.elements.loading.style.opacity = '1';
+                this.elements.vhsText.style.opacity = '0.3';
+            }
+            
+            hideLoading() {
+                this.elements.loading.style.opacity = '0';
+                this.elements.vhsText.style.opacity = '1';
+            }
+            
+            addGlitchEffect() {
+                this.elements.screenContent.classList.add('glitch');
+                setTimeout(() => {
+                    this.elements.screenContent.classList.remove('glitch');
+                }, 500);
+            }
+            
+            addStaticEffect(duration = 200) {
+                this.elements.noise.style.opacity = '0.3';
+                setTimeout(() => {
+                    this.elements.noise.style.opacity = '0';
+                }, duration);
+            }
+            
+            removeStaticEffect() {
+                this.elements.noise.style.opacity = '0';
+            }
+            
+            startBackgroundEffects() {
+                // Create floating particles
+                setInterval(() => {
+                    this.createParticle();
+                }, 2000);
+                
+                // Random glitch effects
+                setInterval(() => {
+                    if (Math.random() < 0.1) {
+                        this.addGlitchEffect();
+                    }
+                }, 10000);
+                
+                // Subtle static bursts
+                setInterval(() => {
+                    if (Math.random() < 0.05 && !this.isRecording) {
+                        this.addStaticEffect(100);
+                    }
+                }, 5000);
+            }
+            
+            createParticle() {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 2 + 's';
+                particle.style.animationDuration = (4 + Math.random() * 4) + 's';
+                
+                this.elements.particles.appendChild(particle);
+                
+                setTimeout(() => {
+                    if (particle.parentNode) {
+                        particle.parentNode.removeChild(particle);
+                    }
+                }, 8000);
+            }
+        }
+        
+        // Initialize the VHS Simulator when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new VHSSimulator();
+        });
+        
+        // Add some extra flair with mouse interactions
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            
+            // Subtle parallax effect on screen content
+            const screenContent = document.getElementById('screenContent');
+            const offsetX = (x - 0.5) * 10;
+            const offsetY = (y - 0.5) * 10;
+            
+            screenContent.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+        });
+    </script>
+</body>
+</html>
