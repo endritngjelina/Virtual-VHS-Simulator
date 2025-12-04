@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual VHS Simulator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            font-family: 'Orbitron', monospace;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 0, 0.03) 2px,
+                rgba(0, 255, 0, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .vhs-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: radial-gradient(ellipse at center, #2c2c54 0%, #1a1a2e 100%);
+        }
+
+        .vhs-header {
+            background: linear-gradient(45deg, #0a0a23, #1a1a2e);
+            padding: 20px;
+            border-bottom: 3px solid #00ff41;
+            box-shadow: 0 4px 20px rgba(0, 255, 65, 0.3);
+        }
+
+        .vhs-title {
+            font-size: 2.5rem;
+            font-weight: 900;
+            text-align: center;
+            color: #00ff41;
+            text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41;
+            letter-spacing: 3px;
+            animation: flicker 2s infinite alternate;
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .video-section {
+            flex: 2;
+            position: relative;
+        }
+
+        .tv-frame {
+            background: linear-gradient(145deg, #2c2c54, #1a1a2e);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 255, 65, 0.2);
+            border: 2px solid #333366;
+        }
+
+        .screen {
+            position: relative;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+            border: 3px solid #333;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .video-display {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #001122, #003344);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .video-noise {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><defs><filter id="noise"><feTurbulence baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter></defs><rect width="100%" height="100%" filter="url(%23noise)" opacity="0.4"/></svg>');
+            animation: noise 0.1s infinite;
+            pointer-events: none;
+        }
+
+        @keyframes noise {
+            0% { transform: translate(0, 0); }
+            10% { transform: translate(-5%, -10%); }
+            20% { transform: translate(-10%, 5%); }
+            30% { transform: translate(5%, -15%); }
+            40% { transform: translate(-5%, 15%); }
+            50% { transform: translate(-10%, 5%); }
+            60% { transform: translate(15%, 0%); }
+            70% { transform: translate(0%, 10%); }
+            80% { transform: translate(-15%, 0%); }
+            90% { transform: translate(10%, 5%); }
+            100% { transform: translate(5%, 0%); }
+        }
+
+        .video-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #00ff41;
+            font-family: 'Share Tech Mono', monospace;
+            z-index: 2;
+        }
+
+        .vhs-logo {
+            font-size: 4rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px #00ff41;
+        }
+
+        .status-text {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .timecode {
+            font-size: 1.2rem;
+            color: #ffff00;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .controls-panel {
+            flex: 1;
+            background: linear-gradient(145deg, #2c2c54, #1a1a2e);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-section {
+            margin-bottom: 30px;
+        }
+
+        .control-section h3 {
+            color: #00ff41;
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            text-shadow: 0 0 5px #00ff41;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .vhs-button {
+            background: linear-gradient(145deg, #4a4a8a, #2c2c54);
+            border: none;
+            border-radius: 8px;
+            color: #ffffff;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .vhs-button:hover {
+            background: linear-gradient(145deg, #5a5a9a, #3c3c64);
+            box-shadow: 0 6px 20px rgba(0, 255, 65, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .vhs-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .vhs-button.active {
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
+        }
+
+        .play-btn { background: linear-gradient(145deg, #ff6b6b, #ee5a52); }
+        .stop-btn { background: linear-gradient(145deg, #4ecdc4, #45b7aa); }
+        .rew-btn { background: linear-gradient(145deg, #ffe66d, #ffd93d); }
+        .ff-btn { background: linear-gradient(145deg, #ff8b94, #ff6b6b); }
+
+        .slider-container {
+            margin: 15px 0;
+        }
+
+        .slider-label {
+            color: #ffffff;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #333366;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00ff41;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .channel-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .channel-btn {
+            background: linear-gradient(145deg, #333366, #2c2c54);
+            border: 1px solid #444488;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Share Tech Mono', monospace;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .channel-btn:hover {
+            background: linear-gradient(145deg, #444477, #333366);
+            border-color: #00ff41;
+        }
+
+        .glitch-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .glitch-slice {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 0, 0, 0.8);
+            display: none;
+        }
+
+        .recording-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #ff0000;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            animation: pulse 1s infinite;
+            display: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .vhs-display-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #ffff00;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .quality-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #00ff41;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .interference-lines {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.3);
+            top: 0;
+            animation: interference 3s linear infinite;
+            display: none;
+        }
+
+        @keyframes interference {
+            0% { top: 0%; opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .vhs-title {
+                font-size: 1.8rem;
+            }
+            
+            .button-row {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    
+    <div class="vhs-container">
+        <div class="vhs-header">
+            <h1 class="vhs-title">VIRTUAL VHS SIMULATOR</h1>
+        </div>
+        
+        <div class="main-content">
+            <div class="video-section">
+                <div class="tv-frame">
+                    <div class="screen">
+                        <div class="video-display">
+                            <div class="video-noise"></div>
+                            <div class="interference-lines" id="interference"></div>
+                            
+                            <div class="quality-indicator" id="qualityIndicator">SP MODE</div>
+                            <div class="recording-indicator" id="recordingIndicator">● REC</div>
+                            
+                            <div class="video-content" id="videoContent">
+                                <div class="vhs-logo">VHS</div>
+                                <div class="status-text" id="statusText">READY TO PLAY</div>
+                                <div class="timecode" id="timecode">00:00:00</div>
+                            </div>
+                            
+                            <div class="vhs-display-info" id="displayInfo">
+                                CHANNEL 03 | STEREO | AUTO
+                            </div>
+                            
+                            <div class="glitch-effect" id="glitchEffect">
+                                <div class="glitch-slice"></div>
+                                <div class="glitch-slice"></div>
+                                <div class="glitch-slice"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-panel">
+                <div class="control-section">
+                    <h3>TRANSPORT CONTROLS</h3>
+                    <div class="button-row">
+                        <button class="vhs-button play-btn" id="playBtn">▶ PLAY</button>
+                        <button class="vhs-button stop-btn" id="stopBtn">⏹ STOP</button>
+                        <button class="vhs-button rew-btn" id="rewBtn">⏪ REW</button>
+                        <button class="vhs-button ff-btn" id="ffBtn">⏩ FF</button>
+                    </div>
+                    <div class="button-row">
+                        <button class="vhs-button" id="pauseBtn">⏸ PAUSE</button>
+                        <button class="vhs-button" id="recordBtn">● REC</button>
+                        <button class="vhs-button" id="ejectBtn">⏏ EJECT</button>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>VIDEO SETTINGS</h3>
+                    <div class="slider-container">
+                        <label class="slider-label">Tracking</label>
+                        <input type="range" class="slider" id="trackingSlider" min="0" max="100" value="50">
+                    </div>
+                    <div class="slider-container">
+                        <label class="slider-label">Noise Level</label>
+                        <input type="range" class="slider" id="noiseSlider" min="0" max="100" value="20">
+                    </div>
+                    <div class="slider-container">
+                        <label class="slider-label">Interference</label>
+                        <input type="range" class="slider" id="interferenceSlider" min="0" max="100" value="15">
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>CHANNEL SELECT</h3>
+                    <div class="channel-grid">
+                        <button class="channel-btn" data-channel="1">CH 01</button>
+                        <button class="channel-btn" data-channel="2">CH 02</button>
+                        <button class="channel-btn" data-channel="3">CH 03</button>
+                        <button class="channel-btn" data-channel="4">CH 04</button>
+                        <button class="channel-btn" data-channel="5">CH 05</button>
+                        <button class="channel-btn" data-channel="6">CH 06</button>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>TAPE FUNCTIONS</h3>
+                    <div class="button-row">
+                        <button class="vhs-button" id="glitchBtn">GLITCH</button>
+                        <button class="vhs-button" id="staticBtn">STATIC</button>
+                        <button class="vhs-button" id="rewindEffectBtn">REWIND FX</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class VHSSimulator {
+            constructor() {
+                this.isPlaying = false;
+                this.isRecording = false;
+                this.currentChannel = 3;
+                this.timecode = { hours: 0, minutes: 0, seconds: 0 };
+                this.timecodeInterval = null;
+                this.glitchTimeout = null;
+                
+                this.initializeElements();
+                this.bindEvents();
+                this.startAmbientEffects();
+            }
+            
+            initializeElements() {
+                this.elements = {
+                    playBtn: document.getElementById('playBtn'),
+                    stopBtn: document.getElementById('stopBtn'),
+                    rewBtn: document.getElementById('rewBtn'),
+                    ffBtn: document.getElementById('ffBtn'),
+                    pauseBtn: document.getElementById('pauseBtn'),
+                    recordBtn: document.getElementById('recordBtn'),
+                    ejectBtn: document.getElementById('ejectBtn'),
+                    glitchBtn: document.getElementById('glitchBtn'),
+                    staticBtn: document.getElementById('staticBtn'),
+                    rewindEffectBtn: document.getElementById('rewindEffectBtn'),
+                    trackingSlider: document.getElementById('trackingSlider'),
+                    noiseSlider: document.getElementById('noiseSlider'),
+                    interferenceSlider: document.getElementById('interferenceSlider'),
+                    statusText: document.getElementById('statusText'),
+                    timecode: document.getElementById('timecode'),
+                    displayInfo: document.getElementById('displayInfo'),
+                    recordingIndicator: document.getElementById('recordingIndicator'),
+                    qualityIndicator: document.getElementById('qualityIndicator'),
+                    videoNoise: document.querySelector('.video-noise'),
+                    interference: document.getElementById('interference'),
+                    glitchEffect: document.getElementById('glitchEffect')
+                };
+            }
+            
+            bindEvents() {
+                // Transport controls
+                this.elements.playBtn.addEventListener('click', () => this.play());
+                this.elements.stopBtn.addEventListener('click', () => this.stop());
+                this.elements.rewBtn.addEventListener('click', () => this.rewind());
+                this.elements.ffBtn.addEventListener('click', () => this.fastForward());
+                this.elements.pauseBtn.addEventListener('click', () => this.pause());
+                this.elements.recordBtn.addEventListener('click', () => this.record());
+                this.elements.ejectBtn.addEventListener('click', () => this.eject());
+                
+                // Effects
+                this.elements.glitchBtn.addEventListener('click', () => this.triggerGlitch());
+                this.elements.staticBtn.addEventListener('click', () => this.triggerStatic());
+                this.elements.rewindEffectBtn.addEventListener('click', () => this.triggerRewindEffect());
+                
+                // Sliders
+                this.elements.trackingSlider.addEventListener('input', (e) => this.adjustTracking(e.target.value));
+                this.elements.noiseSlider.addEventListener('input', (e) => this.adjustNoise(e.target.value));
+                this.elements.interferenceSlider.addEventListener('input', (e) => this.adjustInterference(e.target.value));
+                
+                // Channel buttons
+                document.querySelectorAll('.channel-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.changeChannel(e.target.dataset.channel));
+                });
+            }
+            
+            play() {
+                this.isPlaying = true;
+                this.elements.statusText.textContent = 'PLAYING';
+                this.elements.playBtn.classList.add('active');
+                this.elements.stopBtn.classList.remove('active');
+                this.startTimecode();
+                this.playSound('play');
+            }
+            
+            stop() {
+                this.isPlaying = false;
+                this.isRecording = false;
+                this.elements.statusText.textContent = 'STOPPED';
+                this.elements.playBtn.classList.remove('active');
+                this.elements.stopBtn.classList.add('active');
+                this.elements.recordingIndicator.style.display = 'none';
+                this.stopTimecode();
+                this.resetTimecode();
+                this.playSound('stop');
+            }
+            
+            pause() {
+                this.isPlaying = false;
+                this.elements.statusText.textContent = 'PAUSED';
+                this.elements.playBtn.classList.remove('active');
+                this.stopTimecode();
+                this.playSound('pause');
+            }
+            
+            rewind() {
+                this.elements.statusText.textContent = 'REWINDING';
+                this.triggerRewindEffect();
+                this.playSound('rewind');
+                setTimeout(() => {
+                    if (!this.isPlaying) {
+                        this.elements.statusText.textContent = 'READY TO PLAY';
+                    }
+                }, 2000);
+            }
+            
+            fastForward() {
+                this.elements.statusText.textContent = 'FAST FORWARD';
+                this.playSound('ff');
+                setTimeout(() => {
+                    if (!this.isPlaying) {
+                        this.elements.statusText.textContent = 'READY TO PLAY';
+                    }
+                }, 2000);
+            }
+            
+            record() {
+                this.isRecording = !this.isRecording;
+                if (this.isRecording) {
+                    this.elements.recordingIndicator.style.display = 'block';
+                    this.elements.statusText.textContent = 'RECORDING';
+                    this.play();
+                } else {
+                    this.elements.recordingIndicator.style.display = 'none';
+                    if (this.isPlaying) {
+                        this.elements.statusText.textContent = 'PLAYING';
+                    }
+                }
+                this.playSound('record');
+            }
+            
+            eject() {
+                this.stop();
+                this.elements.statusText.textContent = 'NO TAPE';
+                this.playSound('eject');
+                setTimeout(() => {
+                    this.elements.statusText.textContent = 'READY TO PLAY';
+                }, 3000);
+            }
+            
+            changeChannel(channel) {
+                this.currentChannel = parseInt(channel);
+                this.elements.displayInfo.textContent = `CHANNEL ${channel.padStart(2, '0')} | STEREO | AUTO`;
+                this.triggerChannelChangeEffect();
+                this.playSound('channel');
+            }
+            
+            adjustTracking(value) {
+                const distortion = (100 - value) / 100;
+                this.elements.glitchEffect.style.opacity = distortion * 0.3;
+                
+                if (value < 30) {
+                    this.elements.qualityIndicator.textContent = 'POOR TRACKING';
+                } else if (value > 70) {
+                    this.elements.qualityIndicator.textContent = 'SP MODE';
+                } else {
+                    this.elements.qualityIndicator.textContent = 'LP MODE';
+                }
+            }
+            
+            adjustNoise(value) {
+                this.elements.videoNoise.style.opacity = value / 100 * 0.6;
+            }
+            
+            adjustInterference(value) {
+                if (value > 50) {
+                    this.elements.interference.style.display = 'block';
+                    this.elements.interference.style.animationDuration = `${3 - (value / 100)}s`;
+                } else {
+                    this.elements.interference.style.display = 'none';
+                }
+            }
+            
+            triggerGlitch() {
+                const glitchSlices = this.elements.glitchEffect.querySelectorAll('.glitch-slice');
+                glitchSlices.forEach((slice, index) => {
+                    slice.style.display = 'block';
+                    slice.style.top = `${Math.random() * 100}%`;
+                    slice.style.height = `${Math.random() * 10 + 2}px`;
+                    slice.style.background = `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.8)`;
+                    
+                    setTimeout(() => {
+                        slice.style.display = 'none';
+                    }, 100 + index * 50);
+                });
+                
+                this.playSound('glitch');
+            }
+            
+            triggerStatic() {
+                this.elements.videoNoise.style.opacity = '0.8';
+                this.elements.statusText.textContent = 'STATIC INTERFERENCE';
+                
+                setTimeout(() => {
+                    this.elements.videoNoise.style.opacity = this.elements.noiseSlider.value / 100 * 0.6;
+                    if (!this.isPlaying) {
+                        this.elements.statusText.textContent = 'READY TO PLAY';
+                    } else {
+                        this.elements.statusText.textContent = 'PLAYING';
+                    }
+                }, 2000);
+                
+                this.playSound('static');
+            }
+            
+            triggerRewindEffect() {
+                const content = this.elements.statusText;
+                const originalText = content.textContent;
+                const chars = originalText.split('');
+                
+                let index = chars.length;
+                const rewindInterval = setInterval(() => {
+                    if (index > 0) {
+                        content.textContent = chars.slice(0, index).join('');
+                        index--;
+                    } else {
+                        clearInterval(rewindInterval);
+                        setTimeout(() => {
+                            content.textContent = originalText;
+                        }, 500);
+                    }
+                }, 100);
+            }
+            
+            triggerChannelChangeEffect() {
+                this.elements.videoNoise.style.opacity = '1';
+                this.triggerGlitch();
+                
+                setTimeout(() => {
+                    this.elements.videoNoise.style.opacity = this.elements.noiseSlider.value / 100 * 0.6;
+                }, 500);
+            }
+            
+            startTimecode() {
+                if (this.timecodeInterval) clearInterval(this.timecodeInterval);
+                
+                this.timecodeInterval = setInterval(() => {
+                    if (this.isPlaying) {
+                        this.timecode.seconds++;
+                        if (this.timecode.seconds >= 60) {
+                            this.timecode.seconds = 0;
+                            this.timecode.minutes++;
+                            if (this.timecode.minutes >= 60) {
+                                this.timecode.minutes = 0;
+                                this.timecode.hours++;
+                            }
+                        }
+                        this.updateTimecodeDisplay();
+                    }
+                }, 1000);
+            }
+            
+            stopTimecode() {
+                if (this.timecodeInterval) {
+                    clearInterval(this.timecodeInterval);
+                    this.timecodeInterval = null;
+                }
+            }
+            
+            resetTimecode() {
+                this.timecode = { hours: 0, minutes: 0, seconds: 0 };
+                this.updateTimecodeDisplay();
+            }
+            
+            updateTimecodeDisplay() {
+                const formatted = `${this.timecode.hours.toString().padStart(2, '0')}:${this.timecode.minutes.toString().padStart(2, '0')}:${this.timecode.seconds.toString().padStart(2, '0')}`;
+                this.elements.timecode.textContent = formatted;
+            }
+            
+            startAmbientEffects() {
+                // Random glitches
+                setInterval(() => {
+                    if (Math.random() < 0.1) {
+                        this.triggerGlitch();
+                    }
+                }, 10000);
+                
+                // Subtle tracking adjustments
+                setInterval(() => {
+                    if (Math.random() < 0.05) {
+                        const currentValue = parseInt(this.elements.trackingSlider.value);
+                        const variation = (Math.random() - 0.5) * 10;
+                        const newValue = Math.max(0, Math.min(100, currentValue + variation));
+                        this.elements.trackingSlider.value = newValue;
+                        this.adjustTracking(newValue);
+                    }
+                }, 5000);
+            }
+            
+            playSound(type) {
+                // Web Audio API sound generation
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                const sounds = {
+                    play: () => this.generateBeep(audioContext, 800, 0.1),
+                    stop: () => this.generateBeep(audioContext, 400, 0.2),
+                    pause: () => this.generateBeep(audioContext, 600, 0.1),
+                    rewind: () => this.generateNoise(audioContext, 0.3),
+                    ff: () => this.generateNoise(audioContext, 0.2),
+                    record: () => this.generateBeep(audioContext, 1000, 0.15),
+                    eject: () => this.generateClick(audioContext),
+                    channel: () => this.generateBeep(audioContext, 500, 0.05),
+                    glitch: () => this.generateGlitchSound(audioContext),
+                    static: () => this.generateNoise(audioContext, 0.5)
+                };
+                
+                if (sounds[type]) {
+                    sounds[type]();
+                }
+            }
+            
+            generateBeep(audioContext, frequency, duration) {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                oscillator.type = 'square';
+                
+                gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + duration);
+            }
+            
+            generateNoise(audioContext, duration) {
+                const bufferSize = audioContext.sampleRate * duration;
+                const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * 0.1;
+                }
+                
+                const source = audioContext.createBufferSource();
+                const gainNode = audioContext.createGain();
+                
+                source.buffer = buffer;
+                source.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
+                
+                source.start(audioContext.currentTime);
+            }
+            
+            generateClick(audioContext) {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+                oscillator.type = 'square';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            }
+            
+            generateGlitchSound(audioContext) {
+                const oscillator1 = audioContext.createOscillator();
+                const oscillator2 = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator1.connect(gainNode);
+                oscillator2.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator1.frequency.setValueAtTime(Math.random() * 1000 + 200, audioContext.currentTime);
+                oscillator2.frequency.setValueAtTime(Math.random() * 800 + 300, audioContext.currentTime);
+                oscillator1.type = 'sawtooth';
+                oscillator2.type = 'square';
+                
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
+                
+                oscillator1.start(audioContext.currentTime);
+                oscillator2.start(audioContext.currentTime);
+                oscillator1.stop(audioContext.currentTime + 0.2);
+                oscillator2.stop(audioContext.currentTime + 0.2);
+            }
+        }
+        
+        // Easter eggs and advanced features
+        class VHSEasterEggs {
+            constructor(simulator) {
+                this.simulator = simulator;
+                this.konamiCode = [];
+                this.konamiSequence = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
+                this.initializeEasterEggs();
+            }
+            
+            initializeEasterEggs() {
+                // Konami Code
+                document.addEventListener('keydown', (e) => {
+                    this.konamiCode.push(e.code);
+                    if (this.konamiCode.length > this.konamiSequence.length) {
+                        this.konamiCode.shift();
+                    }
+                    
+                    if (this.konamiCode.join(',') === this.konamiSequence.join(',')) {
+                        this.activateSpecialMode();
+                        this.konamiCode = [];
+                    }
+                });
+                
+                // Double-click TV screen for surprise
+                document.querySelector('.screen').addEventListener('dblclick', () => {
+                    this.activateMatrixMode();
+                });
+                
+                // Right-click for hidden menu
+                document.querySelector('.tv-frame').addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    this.showHiddenMenu(e.clientX, e.clientY);
+                });
+                
+                // Time-based effects
+                this.startTimeBasedEffects();
+            }
+            
+            activateSpecialMode() {
+                document.body.style.filter = 'hue-rotate(180deg) saturate(2)';
+                this.simulator.elements.statusText.textContent = '✨ SPECIAL MODE ACTIVATED ✨';
+                
+                // Rainbow effect on title
+                const title = document.querySelector('.vhs-title');
+                title.style.animation = 'rainbow 1s linear infinite';
+                
+                // Add rainbow keyframes
+                if (!document.querySelector('#rainbow-style')) {
+                    const style = document.createElement('style');
+                    style.id = 'rainbow-style';
+                    style.textContent = `
+                        @keyframes rainbow {
+                            0% { color: #ff0000; }
+                            16% { color: #ff8000; }
+                            33% { color: #ffff00; }
+                            50% { color: #00ff00; }
+                            66% { color: #0080ff; }
+                            83% { color: #8000ff; }
+                            100% { color: #ff0000; }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+                
+                setTimeout(() => {
+                    document.body.style.filter = '';
+                    title.style.animation = 'flicker 2s infinite alternate';
+                    this.simulator.elements.statusText.textContent = 'READY TO PLAY';
+                }, 10000);
+            }
+            
+            activateMatrixMode() {
+                const screen = document.querySelector('.video-display');
+                const matrixOverlay = document.createElement('div');
+                matrixOverlay.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: #000;
+                    color: #00ff00;
+                    font-family: 'Share Tech Mono', monospace;
+                    font-size: 12px;
+                    overflow: hidden;
+                    z-index: 20;
+                `;
+                
+                screen.appendChild(matrixOverlay);
+                
+                // Generate matrix rain effect
+                const columns = Math.floor(matrixOverlay.offsetWidth / 12);
+                const drops = Array(columns).fill(0);
+                
+                const matrixChars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+                
+                const matrixInterval = setInterval(() => {
+                    matrixOverlay.innerHTML = '';
+                    
+                    for (let i = 0; i < drops.length; i++) {
+                        const char = matrixChars[Math.floor(Math.random() * matrixChars.length)];
+                        const div = document.createElement('div');
+                        div.style.cssText = `
+                            position: absolute;
+                            left: ${i * 12}px;
+                            top: ${drops[i] * 15}px;
+                            color: ${Math.random() > 0.98 ? '#ffffff' : '#00ff00'};
+                        `;
+                        div.textContent = char;
+                        matrixOverlay.appendChild(div);
+                        
+                        if (drops[i] * 15 > matrixOverlay.offsetHeight && Math.random() > 0.975) {
+                            drops[i] = 0;
+                        }
+                        drops[i]++;
+                    }
+                }, 50);
+                
+                setTimeout(() => {
+                    clearInterval(matrixInterval);
+                    screen.removeChild(matrixOverlay);
+                }, 5000);
+            }
+            
+            showHiddenMenu(x, y) {
+                // Remove existing menu if present
+                const existingMenu = document.querySelector('.hidden-menu');
+                if (existingMenu) existingMenu.remove();
+                
+                const menu = document.createElement('div');
+                menu.className = 'hidden-menu';
+                menu.style.cssText = `
+                    position: fixed;
+                    top: ${y}px;
+                    left: ${x}px;
+                    background: linear-gradient(145deg, #2c2c54, #1a1a2e);
+                    border: 2px solid #00ff41;
+                    border-radius: 8px;
+                    padding: 10px;
+                    z-index: 1001;
+                    font-family: 'Orbitron', monospace;
+                    font-size: 12px;
+                    color: #ffffff;
+                    box-shadow: 0 4px 20px rgba(0, 255, 65, 0.3);
+                `;
+                
+                const menuItems = [
+                    'DIAGNOSTIC MODE',
+                    'TAPE COUNTER RESET',
+                    'HEAD CLEANER',
+                    'CALIBRATION',
+                    'SERVICE MENU'
+                ];
+                
+                menuItems.forEach(item => {
+                    const menuItem = document.createElement('div');
+                    menuItem.style.cssText = `
+                        padding: 8px 12px;
+                        cursor: pointer;
+                        border-radius: 4px;
+                        transition: all 0.3s ease;
+                    `;
+                    menuItem.textContent = item;
+                    
+                    menuItem.addEventListener('mouseenter', () => {
+                        menuItem.style.background = 'rgba(0, 255, 65, 0.2)';
+                        menuItem.style.color = '#00ff41';
+                    });
+                    
+                    menuItem.addEventListener('mouseleave', () => {
+                        menuItem.style.background = 'transparent';
+                        menuItem.style.color = '#ffffff';
+                    });
+                    
+                    menuItem.addEventListener('click', () => {
+                        this.handleHiddenMenuClick(item);
+                        menu.remove();
+                    });
+                    
+                    menu.appendChild(menuItem);
+                });
+                
+                document.body.appendChild(menu);
+                
+                // Remove menu on outside click
+                setTimeout(() => {
+                    document.addEventListener('click', (e) => {
+                        if (!menu.contains(e.target)) {
+                            menu.remove();
+                        }
+                    }, { once: true });
+                }, 100);
+            }
+            
+            handleHiddenMenuClick(item) {
+                switch (item) {
+                    case 'DIAGNOSTIC MODE':
+                        this.runDiagnostic();
+                        break;
+                    case 'TAPE COUNTER RESET':
+                        this.simulator.resetTimecode();
+                        this.simulator.elements.statusText.textContent = 'COUNTER RESET';
+                        break;
+                    case 'HEAD CLEANER':
+                        this.runHeadCleaner();
+                        break;
+                    case 'CALIBRATION':
+                        this.runCalibration();
+                        break;
+                    case 'SERVICE MENU':
+                        this.showServiceMenu();
+                        break;
+                }
+            }
+            
+            runDiagnostic() {
+                const diagnosticMessages = [
+                    'CHECKING TAPE MECHANISM...',
+                    'TESTING VIDEO HEADS...',
+                    'CALIBRATING TRACKING...',
+                    'VERIFYING AUDIO CIRCUITS...',
+                    'DIAGNOSTIC COMPLETE - ALL OK'
+                ];
+                
+                let index = 0;
+                const diagnosticInterval = setInterval(() => {
+                    this.simulator.elements.statusText.textContent = diagnosticMessages[index];
+                    index++;
+                    
+                    if (index >= diagnosticMessages.length) {
+                        clearInterval(diagnosticInterval);
+                        setTimeout(() => {
+                            this.simulator.elements.statusText.textContent = 'READY TO PLAY';
+                        }, 2000);
+                    }
+                }, 1000);
+            }
+            
+            runHeadCleaner() {
+                this.simulator.elements.statusText.textContent = 'HEAD CLEANING...';
+                this.simulator.triggerStatic();
+                
+                setTimeout(() => {
+                    this.simulator.elements.trackingSlider.value = 75;
+                    this.simulator.adjustTracking(75);
+                    this.simulator.elements.noiseSlider.value = 10;
+                    this.simulator.adjustNoise(10);
+                    this.simulator.elements.statusText.textContent = 'HEAD CLEANING COMPLETE';
+                    
+                    setTimeout(() => {
+                        this.simulator.elements.statusText.textContent = 'READY TO PLAY';
+                    }, 2000);
+                }, 3000);
+            }
+            
+            runCalibration() {
+                this.simulator.elements.statusText.textContent = 'CALIBRATING...';
+                
+                // Animate sliders to optimal positions
+                const targetValues = { tracking: 60, noise: 15, interference: 10 };
+                const currentValues = {
+                    tracking: parseInt(this.simulator.elements.trackingSlider.value),
+                    noise: parseInt(this.simulator.elements.noiseSlider.value),
+                    interference: parseInt(this.simulator.elements.interferenceSlider.value)
+                };
+                
+                let steps = 0;
+                const maxSteps = 20;
+                
+                const calibrationInterval = setInterval(() => {
+                    steps++;
+                    const progress = steps / maxSteps;
+                    
+                    Object.keys(targetValues).forEach(key => {
+                        const slider = this.simulator.elements[key + 'Slider'];
+                        const startValue = currentValues[key];
+                        const targetValue = targetValues[key];
+                        const currentValue = startValue + (targetValue - startValue) * progress;
+                        
+                        slider.value = currentValue;
+                        
+                        if (key === 'tracking') this.simulator.adjustTracking(currentValue);
+                        else if (key === 'noise') this.simulator.adjustNoise(currentValue);
+                        else if (key === 'interference') this.simulator.adjustInterference(currentValue);
+                    });
+                    
+                    if (steps >= maxSteps) {
+                        clearInterval(calibrationInterval);
+                        this.simulator.elements.statusText.textContent = 'CALIBRATION COMPLETE';
+                        setTimeout(() => {
+                            this.simulator.elements.statusText.textContent = 'READY TO PLAY';
+                        }, 2000);
+                    }
+                }, 100);
+            }
+            
+            showServiceMenu() {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.9);
+                    z-index: 2000;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    font-family: 'Share Tech Mono', monospace;
+                    color: #00ff41;
+                `;
+                
+                overlay.innerHTML = `
+                    <div style="
+                        background: linear-gradient(145deg, #1a1a2e, #0f1419);
+                        border: 3px solid #00ff41;
+                        border-radius: 15px;
+                        padding: 30px;
+                        text-align: center;
+                        box-shadow: 0 0 50px rgba(0, 255, 65, 0.5);
+                        max-width: 500px;
+                    ">
+                        <h2 style="margin-bottom: 20px; font-size: 1.5rem;">SERVICE MENU</h2>
+                        <div style="text-align: left; margin-bottom: 20px; line-height: 1.6;">
+                            FIRMWARE VERSION: VHS-SIM v2.1<br>
+                            UPTIME: ${Math.floor(Math.random() * 1000)}H ${Math.floor(Math.random() * 60)}M<br>
+                            TAPE HOURS: ${Math.floor(Math.random() * 5000)}<br>
+                            HEAD CYCLES: ${Math.floor(Math.random() * 50000)}<br>
+                            LAST SERVICE: ${Math.floor(Math.random() * 365)} DAYS AGO<br>
+                            STATUS: OPERATIONAL
+                        </div>
+                        <button id="closeServiceMenu" style="
+                            background: linear-gradient(145deg, #4a4a8a, #2c2c54);
+                            border: 2px solid #00ff41;
+                            color: #ffffff;
+                            padding: 10px 20px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-family: inherit;
+                        ">CLOSE</button>
+                    </div>
+                `;
+                
+                document.body.appendChild(overlay);
+                
+                document.getElementById('closeServiceMenu').addEventListener('click', () => {
+                    overlay.remove();
+                });
+                
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) overlay.remove();
+                });
+            }
+            
+            startTimeBasedEffects() {
+                // Subtle effects based on real time
+                setInterval(() => {
+                    const now = new Date();
+                    const hours = now.getHours();
+                    
+                    // Late night static increase
+                    if (hours >= 23 || hours <= 5) {
+                        if (Math.random() < 0.3) {
+                            const currentNoise = parseInt(this.simulator.elements.noiseSlider.value);
+                            this.simulator.adjustNoise(Math.min(100, currentNoise + 5));
+                        }
+                    }
+                    
+                    // Random channel drift during "prime time"
+                    if (hours >= 19 && hours <= 22) {
+                        if (Math.random() < 0.1) {
+                            this.simulator.triggerGlitch();
+                        }
+                    }
+                }, 30000);
+            }
+        }
+        
+        // Initialize the VHS Simulator
+        document.addEventListener('DOMContentLoaded', () => {
+            const vhsSimulator = new VHSSimulator();
+            const easterEggs = new VHSEasterEggs(vhsSimulator);
+            
+            // Add loading animation
+            const loadingScreen = document.createElement('div');
+            loadingScreen.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: #000;
+                color: #00ff41;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                font-family: 'Share Tech Mono', monospace;
+                font-size: 1.2rem;
+            `;
+            
+            loadingScreen.innerHTML = `
+                <div>VHS SIMULATOR INITIALIZING...</div>
+                <div style="margin-top: 20px; width: 300px; height: 4px; background: #333; border-radius: 2px;">
+                    <div id="loadingBar" style="width: 0%; height: 100%; background: #00ff41; border-radius: 2px; transition: width 0.3s ease;"></div>
+                </div>
+            `;
+            
+            document.body.appendChild(loadingScreen);
+            
+            // Simulate loading
+            let progress = 0;
+            const loadingInterval = setInterval(() => {
+                progress += Math.random() * 20;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(loadingInterval);
+                    setTimeout(() => {
+                        loadingScreen.style.opacity = '0';
+                        setTimeout(() => loadingScreen.remove(), 500);
+                    }, 500);
+                }
+                document.getElementById('loadingBar').style.width = progress + '%';
+            }, 200);
+            
+            // Add performance monitoring
+            let frameCount = 0;
+            let lastTime = performance.now();
+            
+            function updatePerformance() {
+                frameCount++;
+                const currentTime = performance.now();
+                
+                if (currentTime - lastTime >= 1000) {
+                    const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                    
+                    // Adjust effects based on performance
+                    if (fps < 30) {
+                        // Reduce intensive effects
+                        vhsSimulator.elements.videoNoise.style.animationDuration = '0.2s';
+                    } else {
+                        vhsSimulator.elements.videoNoise.style.animationDuration = '0.1s';
+                    }
+                    
+                    frameCount = 0;
+                    lastTime = currentTime;
+                }
+                
+                requestAnimationFrame(updatePerformance);
+            }
+            
+            updatePerformance();
+        });
+    </script>
+</body>
+</html>
