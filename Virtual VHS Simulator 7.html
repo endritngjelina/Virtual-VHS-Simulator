@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VHS Simulator Pro</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(0, 50, 20, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 100, 40, 0.2) 0%, transparent 50%),
+                linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0a0a0a 100%);
+            font-family: 'Orbitron', monospace;
+            color: #00ff41;
+            overflow-x: hidden;
+            user-select: none;
+            min-height: 100vh;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 25% 25%, rgba(0, 255, 65, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(0, 255, 65, 0.03) 0%, transparent 50%);
+            animation: ambientGlow 10s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        @keyframes ambientGlow {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.7; }
+        }
+        
+        .vhs-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: 
+                radial-gradient(ellipse at center, rgba(26, 26, 26, 0.9) 0%, rgba(0, 0, 0, 0.95) 100%);
+            z-index: 2;
+        }
+        
+        .vhs-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23003d1a" stroke-width="0.5" opacity="0.1"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+            pointer-events: none;
+            animation: gridPulse 8s ease-in-out infinite;
+        }
+        
+        @keyframes gridPulse {
+            0%, 100% { opacity: 0.1; }
+            50% { opacity: 0.3; }
+        }
+        
+        /* Scanlines Effect */
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent 0px,
+                    transparent 1px,
+                    rgba(0, 255, 65, 0.02) 1px,
+                    rgba(0, 255, 65, 0.02) 2px,
+                    transparent 2px,
+                    transparent 4px
+                );
+            pointer-events: none;
+            z-index: 1000;
+            animation: scanlineFlicker 0.15s linear infinite;
+            opacity: 0.8;
+        }
+        
+        @keyframes scanlineFlicker {
+            0% { opacity: 0.8; }
+            98% { opacity: 0.8; }
+            99% { opacity: 0.4; }
+            100% { opacity: 0.8; }
+        }
+        
+        .scanlines::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(0, 255, 65, 0.8) 50%, 
+                transparent 100%);
+            animation: scanLine 2s linear infinite;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+        
+        @keyframes scanLine {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(100vh); opacity: 0; }
+        }
+        
+        /* Static Noise */
+        .noise {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><filter id="noise"><feTurbulence baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter></defs><rect width="100%" height="100%" filter="url(%23noise)" opacity="0.1"/></svg>');
+            opacity: 0;
+            pointer-events: none;
+            z-index: 999;
+            transition: opacity 0.3s;
+        }
+        
+        /* VHS Player Interface */
+        .vhs-player {
+            position: relative;
+            width: 90%;
+            max-width: 1200px;
+            height: 80vh;
+            margin: 5vh auto;
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            border-radius: 20px;
+            border: 3px solid #333;
+            box-shadow: 
+                0 0 50px rgba(0, 255, 65, 0.2),
+                inset 0 0 30px rgba(0, 0, 0, 0.8),
+                0 20px 40px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .vhs-player:hover {
+            transform: translateY(-5px);
+            box-shadow: 
+                0 0 70px rgba(0, 255, 65, 0.3),
+                inset 0 0 30px rgba(0, 0, 0, 0.8),
+                0 30px 60px rgba(0, 0, 0, 0.8);
+        }
+        
+        /* Screen Area */
+        .screen {
+            position: relative;
+            width: 85%;
+            height: 60%;
+            margin: 5% auto 3% auto;
+            background: #000;
+            border: 8px solid #333;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 
+                inset 0 0 40px rgba(0, 0, 0, 0.9),
+                0 0 20px rgba(0, 255, 65, 0.1),
+                inset 0 0 100px rgba(0, 30, 10, 0.3);
+            transition: all 0.4s ease;
+        }
+        
+        .screen:hover {
+            box-shadow: 
+                inset 0 0 40px rgba(0, 0, 0, 0.9),
+                0 0 30px rgba(0, 255, 65, 0.2),
+                inset 0 0 100px rgba(0, 40, 15, 0.4);
+            border-color: #444;
+        }
+        
+        .screen::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .screen::after {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            height: 3px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(0, 255, 65, 0.3) 20%, 
+                rgba(0, 255, 65, 0.1) 80%, 
+                transparent 100%);
+            border-radius: 2px;
+            animation: scanBeam 3s infinite linear;
+            pointer-events: none;
+            z-index: 6;
+        }
+        
+        @keyframes scanBeam {
+            0% { transform: translateY(0) scaleX(0); opacity: 0; }
+            10% { transform: translateY(0) scaleX(1); opacity: 1; }
+            90% { transform: translateY(calc(60vh - 100px)) scaleX(0.3); opacity: 0.5; }
+            100% { transform: translateY(calc(60vh - 80px)) scaleX(0); opacity: 0; }
+        }
+        
+        .screen-content {
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(ellipse at 30% 70%, rgba(0, 61, 26, 0.4) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 30%, rgba(0, 40, 15, 0.3) 0%, transparent 50%),
+                linear-gradient(45deg, #001a0d, #003d1a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            filter: blur(0px) contrast(1.3) saturate(1.6) brightness(1.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+        
+        .screen-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(45deg, 
+                    rgba(0, 255, 65, 0.05) 0%, 
+                    transparent 25%, 
+                    rgba(0, 255, 65, 0.02) 50%, 
+                    transparent 75%, 
+                    rgba(0, 255, 65, 0.05) 100%);
+            animation: contentShimmer 6s ease-in-out infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes contentShimmer {
+            0%, 100% { opacity: 0.5; transform: translateX(-100%); }
+            50% { opacity: 1; transform: translateX(100%); }
+        }
+        
+        .screen-content.playing {
+            filter: blur(0px) contrast(1.5) saturate(2) brightness(1.2);
+            background: 
+                radial-gradient(ellipse at 40% 60%, rgba(0, 80, 35, 0.5) 0%, transparent 60%),
+                radial-gradient(ellipse at 60% 40%, rgba(0, 60, 25, 0.4) 0%, transparent 60%),
+                linear-gradient(135deg, #002d15, #004d22);
+        }
+        
+        .screen-content.recording {
+            animation: recordingPulse 1s ease-in-out infinite alternate;
+        }
+        
+        @keyframes recordingPulse {
+            0% { 
+                filter: blur(0px) contrast(1.3) saturate(1.6) brightness(1.1) hue-rotate(0deg);
+                box-shadow: inset 0 0 50px rgba(255, 0, 0, 0.1);
+            }
+            100% { 
+                filter: blur(0px) contrast(1.4) saturate(1.8) brightness(1.3) hue-rotate(10deg);
+                box-shadow: inset 0 0 50px rgba(255, 0, 0, 0.2);
+            }
+        }
+        
+        .video-overlay {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: 
+                repeating-linear-gradient(
+                    90deg,
+                    transparent 0px,
+                    rgba(255, 255, 255, 0.01) 1px,
+                    rgba(0, 255, 65, 0.02) 2px,
+                    transparent 3px
+                ),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent 0px,
+                    rgba(0, 255, 65, 0.01) 1px,
+                    transparent 2px
+                );
+            mix-blend-mode: overlay;
+            animation: overlayDistort 4s ease-in-out infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes overlayDistort {
+            0%, 100% { 
+                transform: translate(0, 0) scale(1);
+                filter: contrast(1);
+            }
+            25% { 
+                transform: translate(1px, 0) scale(1.001);
+                filter: contrast(1.1);
+            }
+            50% { 
+                transform: translate(0, 1px) scale(0.999);
+                filter: contrast(0.9);
+            }
+            75% { 
+                transform: translate(-1px, 0) scale(1.001);
+                filter: contrast(1.05);
+            }
+        }
+        
+        /* VHS Text Display */
+        .vhs-text {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #00ff41;
+            text-shadow: 
+                0 0 5px #00ff41,
+                0 0 10px #00ff41,
+                0 0 20px #00ff41,
+                0 0 40px rgba(0, 255, 65, 0.8);
+            animation: textGlitch 4s infinite;
+            z-index: 10;
+            position: relative;
+            text-align: center;
+            letter-spacing: 0.1em;
+            background: linear-gradient(45deg, #00ff41, #33ff66, #00ff41);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% 200%;
+            animation: textGlitch 4s infinite, gradientShift 3s ease-in-out infinite;
+        }
+        
+        .vhs-text::before {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 2px;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #ff0040, #ff4040);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            z-index: -1;
+            animation: textGlitchRed 4s infinite;
+            opacity: 0;
+        }
+        
+        .vhs-text::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: -2px;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #0040ff, #4040ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            z-index: -1;
+            animation: textGlitchBlue 4s infinite;
+            opacity: 0;
+        }
+        
+        @keyframes textGlitch {
+            0%, 92% { 
+                transform: translate(0); 
+                filter: hue-rotate(0deg);
+            }
+            1% { 
+                transform: translate(2px, -1px); 
+                filter: hue-rotate(90deg);
+            }
+            2% { 
+                transform: translate(-1px, 2px); 
+                filter: hue-rotate(180deg);
+            }
+            3% { 
+                transform: translate(0); 
+                filter: hue-rotate(0deg);
+            }
+            93% { 
+                transform: translate(-1px, 1px); 
+                filter: hue-rotate(270deg);
+            }
+            95% { 
+                transform: translate(2px, -2px); 
+                filter: hue-rotate(360deg);
+            }
+            97% { 
+                transform: translate(0); 
+                filter: hue-rotate(0deg);
+            }
+        }
+        
+        @keyframes textGlitchRed {
+            0%, 92% { opacity: 0; }
+            93%, 95% { opacity: 0.8; }
+            96%, 100% { opacity: 0; }
+        }
+        
+        @keyframes textGlitchBlue {
+            0%, 92% { opacity: 0; }
+            1%, 3% { opacity: 0.6; }
+            4%, 100% { opacity: 0; }
+        }
+        
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        /* Control Panel */
+        .controls {
+            position: absolute;
+            bottom: 8%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
+            padding: 20px 35px;
+            border-radius: 20px;
+            border: 2px solid #333;
+            box-shadow: 
+                0 10px 25px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                0 0 30px rgba(0, 255, 65, 0.1);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .controls::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(145deg, transparent, rgba(0, 255, 65, 0.05));
+            border-radius: 18px;
+            pointer-events: none;
+        }
+        
+        .controls:hover {
+            transform: translateX(-50%) translateY(-3px);
+            box-shadow: 
+                0 15px 35px rgba(0, 0, 0, 0.8),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                0 0 40px rgba(0, 255, 65, 0.2);
+        }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            color: #00ff41;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 
+                0 4px 8px rgba(0, 0, 0, 0.3),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+                0 0 0 0 rgba(0, 255, 65, 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .control-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(0, 255, 65, 0.3) 0%, transparent 70%);
+            border-radius: 50%;
+            transition: all 0.4s ease;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 
+                0 8px 16px rgba(0, 255, 65, 0.3),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+                0 0 20px 2px rgba(0, 255, 65, 0.2);
+            color: #33ff66;
+        }
+        
+        .control-btn:hover::before {
+            width: 120%;
+            height: 120%;
+        }
+        
+        .control-btn:active {
+            transform: translateY(0) scale(0.95);
+            box-shadow: 
+                0 2px 4px rgba(0, 0, 0, 0.3),
+                inset 0 2px 4px rgba(0, 0, 0, 0.5);
+            transition: all 0.1s ease;
+        }
+        
+        .control-btn.active {
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            color: #000;
+            text-shadow: none;
+            animation: pulse 2s infinite;
+        }
+        
+        .control-btn.active::before {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { 
+                box-shadow: 
+                    0 4px 8px rgba(0, 255, 65, 0.5),
+                    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+                    0 0 15px rgba(0, 255, 65, 0.4);
+            }
+            50% { 
+                box-shadow: 
+                    0 6px 12px rgba(0, 255, 65, 0.7),
+                    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+                    0 0 25px rgba(0, 255, 65, 0.6);
+            }
+        }
+        
+        /* Time Display */
+        .time-display {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.5rem;
+            color: #00ff41;
+            background: linear-gradient(145deg, #000, #1a1a1a);
+            padding: 12px 22px;
+            border-radius: 12px;
+            border: 2px solid #333;
+            min-width: 150px;
+            text-align: center;
+            text-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px rgba(0, 255, 65, 0.5);
+            box-shadow: 
+                inset 0 2px 4px rgba(0, 0, 0, 0.8),
+                0 2px 8px rgba(0, 255, 65, 0.2);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .time-display::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(0, 255, 65, 0.1) 50%, 
+                transparent 100%);
+            animation: timeGlow 4s infinite;
+        }
+        
+        @keyframes timeGlow {
+            0% { left: -100%; }
+            50% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .time-display:hover {
+            transform: scale(1.05);
+            text-shadow: 
+                0 0 15px #00ff41,
+                0 0 30px rgba(0, 255, 65, 0.7);
+        }
+        
+        /* Status Indicators */
+        .status-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.9rem;
+            color: #00ff41;
+            transition: all 0.3s ease;
+            padding: 5px 8px;
+            border-radius: 6px;
+        }
+        
+        .status-item:hover {
+            background: rgba(0, 255, 65, 0.1);
+            transform: translateX(-3px);
+        }
+        
+        .status-led {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ff0000;
+            box-shadow: 
+                0 0 10px #ff0000,
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            animation: ledBlink 2s infinite;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .status-led::before {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .status-led.active {
+            background: #00ff41;
+            box-shadow: 
+                0 0 15px #00ff41,
+                0 0 25px rgba(0, 255, 65, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            animation: none;
+        }
+        
+        @keyframes ledBlink {
+            0%, 50% { 
+                opacity: 1; 
+                box-shadow: 
+                    0 0 10px #ff0000,
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            }
+            51%, 100% { 
+                opacity: 0.3; 
+                box-shadow: 
+                    0 0 5px #ff0000,
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            }
+        }
+        
+        /* Channel Display */
+        .channel-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-family: 'Orbitron', monospace;
+            font-size: 3rem;
+            font-weight: 900;
+            color: #00ff41;
+            text-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px #00ff41,
+                0 0 40px rgba(0, 255, 65, 0.5);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transform: scale(0.8) translateY(-20px);
+            background: linear-gradient(145deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6));
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid rgba(0, 255, 65, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        .channel-display.visible {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+        
+        .channel-display::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, 
+                #00ff41, 
+                transparent, 
+                #00ff41, 
+                transparent, 
+                #00ff41);
+            border-radius: 12px;
+            z-index: -1;
+            opacity: 0;
+            animation: borderGlow 2s infinite;
+        }
+        
+        @keyframes borderGlow {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Glitch Effect */
+        .glitch {
+            animation: glitch 0.5s;
+        }
+        
+        @keyframes glitch {
+            0% { transform: translate(0); filter: hue-rotate(0deg); }
+            10% { transform: translate(-2px, -2px); filter: hue-rotate(90deg); }
+            20% { transform: translate(2px, 2px); filter: hue-rotate(180deg); }
+            30% { transform: translate(-2px, 2px); filter: hue-rotate(270deg); }
+            40% { transform: translate(2px, -2px); filter: hue-rotate(360deg); }
+            50% { transform: translate(-2px, -2px); filter: hue-rotate(90deg); }
+            60% { transform: translate(2px, 2px); filter: hue-rotate(180deg); }
+            70% { transform: translate(-2px, 2px); filter: hue-rotate(270deg); }
+            80% { transform: translate(2px, -2px); filter: hue-rotate(360deg); }
+            90% { transform: translate(-2px, -2px); filter: hue-rotate(0deg); }
+            100% { transform: translate(0); filter: hue-rotate(0deg); }
+        }
+        
+        /* Volume Control */
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 25px;
+            border: 1px solid #333;
+            transition: all 0.3s ease;
+        }
+        
+        .volume-control:hover {
+            background: rgba(0, 0, 0, 0.8);
+            border-color: #00ff41;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.2);
+        }
+        
+        .volume-control span {
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .volume-control:hover span {
+            color: #33ff66;
+            filter: drop-shadow(0 0 5px #00ff41);
+        }
+        
+        .volume-slider {
+            width: 120px;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #333, #555);
+            outline: none;
+            -webkit-appearance: none;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .volume-slider:hover {
+            background: linear-gradient(to right, #444, #666);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+        
+        .volume-slider::-webkit-slider-track {
+            height: 8px;
+            background: transparent;
+        }
+        
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            cursor: pointer;
+            box-shadow: 
+                0 0 10px #00ff41,
+                0 2px 4px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            border: 2px solid #003d1a;
+        }
+        
+        .volume-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 
+                0 0 20px #00ff41,
+                0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+        
+        .volume-slider::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #00ff41, #00cc33);
+            cursor: pointer;
+            box-shadow: 0 0 10px #00ff41;
+            border: 2px solid #003d1a;
+        }
+        
+        /* Loading Animation */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            border: 4px solid rgba(51, 51, 51, 0.3);
+            border-top: 4px solid #00ff41;
+            border-right: 4px solid rgba(0, 255, 65, 0.7);
+            border-radius: 50%;
+            animation: spin 1s linear infinite, loadingPulse 2s ease-in-out infinite;
+            opacity: 0;
+            box-shadow: 
+                0 0 20px rgba(0, 255, 65, 0.3),
+                inset 0 0 20px rgba(0, 255, 65, 0.1);
+        }
+        
+        .loading::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border: 2px solid transparent;
+            border-top: 2px solid rgba(0, 255, 65, 0.5);
+            border-radius: 50%;
+            animation: spin 1.5s linear infinite reverse;
+        }
+        
+        .loading::after {
+            content: 'LOADING...';
+            position: absolute;
+            top: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.8rem;
+            color: #00ff41;
+            text-shadow: 0 0 10px #00ff41;
+            letter-spacing: 0.2em;
+            animation: loadingText 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        
+        @keyframes loadingPulse {
+            0%, 100% { 
+                box-shadow: 
+                    0 0 20px rgba(0, 255, 65, 0.3),
+                    inset 0 0 20px rgba(0, 255, 65, 0.1);
+            }
+            50% { 
+                box-shadow: 
+                    0 0 40px rgba(0, 255, 65, 0.6),
+                    inset 0 0 30px rgba(0, 255, 65, 0.2);
+            }
+        }
+        
+        @keyframes loadingText {
+            0%, 66% { opacity: 0; }
+            33%, 100% { opacity: 1; }
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .vhs-player {
+                width: 95%;
+                height: 85vh;
+                margin: 2.5vh auto;
+            }
+            
+            .controls {
+                gap: 15px;
+                padding: 10px 20px;
+            }
+            
+            .control-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 16px;
+            }
+            
+            .vhs-text {
+                font-size: 1.8rem;
+            }
+            
+            .time-display {
+                font-size: 1.2rem;
+                padding: 8px 16px;
+                min-width: 120px;
+            }
+            
+            .channel-display {
+                font-size: 2rem;
+            }
+        }
+        
+        /* Background Particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
+        }
+        
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00ff41 0%, rgba(0, 255, 65, 0.8) 40%, transparent 70%);
+            opacity: 0.4;
+            animation: float 8s infinite linear;
+            box-shadow: 0 0 6px rgba(0, 255, 65, 0.5);
+        }
+        
+        .particle.small {
+            width: 2px;
+            height: 2px;
+        }
+        
+        .particle.medium {
+            width: 4px;
+            height: 4px;
+            animation-duration: 10s;
+        }
+        
+        .particle.large {
+            width: 6px;
+            height: 6px;
+            animation-duration: 12s;
+            opacity: 0.2;
+        }
+        
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) translateX(0) rotate(0deg) scale(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.6;
+                transform: translateY(90vh) translateX(20px) rotate(45deg) scale(1);
+            }
+            20% {
+                transform: translateY(80vh) translateX(-10px) rotate(90deg) scale(1.2);
+            }
+            30% {
+                transform: translateY(70vh) translateX(30px) rotate(135deg) scale(0.8);
+            }
+            50% {
+                opacity: 0.8;
+                transform: translateY(50vh) translateX(-20px) rotate(225deg) scale(1);
+            }
+            70% {
+                transform: translateY(30vh) translateX(15px) rotate(270deg) scale(1.1);
+            }
+            90% {
+                opacity: 0.4;
+                transform: translateY(10vh) translateX(-25px) rotate(315deg) scale(0.9);
+            }
+            100% {
+                transform: translateY(-10px) translateX(0) rotate(360deg) scale(0);
+                opacity: 0;
+            }
+        }
+        
+        /* Floating Orbs */
+        .floating-orb {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(0, 255, 65, 0.8), rgba(0, 255, 65, 0.2), transparent);
+            animation: orbitFloat 15s infinite ease-in-out;
+            pointer-events: none;
+            filter: blur(1px);
+        }
+        
+        .floating-orb.orb-1 {
+            width: 20px;
+            height: 20px;
+            top: 20%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+        
+        .floating-orb.orb-2 {
+            width: 15px;
+            height: 15px;
+            top: 70%;
+            right: 15%;
+            animation-delay: -5s;
+            animation-duration: 20s;
+        }
+        
+        .floating-orb.orb-3 {
+            width: 25px;
+            height: 25px;
+            bottom: 30%;
+            left: 20%;
+            animation-delay: -10s;
+            animation-duration: 25s;
+        }
+        
+        @keyframes orbitFloat {
+            0%, 100% { 
+                transform: translate(0, 0) scale(1);
+                opacity: 0.3;
+            }
+            25% { 
+                transform: translate(50px, -30px) scale(1.2);
+                opacity: 0.6;
+            }
+            50% { 
+                transform: translate(100px, 20px) scale(0.8);
+                opacity: 0.4;
+            }
+            75% { 
+                transform: translate(20px, 40px) scale(1.1);
+                opacity: 0.7;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="vhs-container">
+        <div class="scanlines"></div>
+        <div class="noise" id="noise"></div>
+        <div class="particles" id="particles"></div>
+        
+        <div class="vhs-player">
+            <div class="channel-display" id="channelDisplay">CH 03</div>
+            
+            <div class="status-panel">
+                <div class="status-item">
+                    <div class="status-led" id="recordLed"></div>
+                    <span>REC</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-led active" id="powerLed"></div>
+                    <span>PWR</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-led" id="playLed"></div>
+                    <span>PLAY</span>
+                </div>
+            </div>
+            
+            <div class="screen">
+                <div class="screen-content" id="screenContent">
+                    <div class="video-overlay"></div>
+                    <div class="vhs-text" id="vhsText">VHS SIMULATOR</div>
+                    <div class="loading" id="loading"></div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="control-btn" id="recordBtn" title="Record">⏺</button>
+                <button class="control-btn" id="rewindBtn" title="Rewind">⏪</button>
+                <button class="control-btn" id="playBtn" title="Play">▶</button>
+                <button class="control-btn" id="pauseBtn" title="Pause">⏸</button>
+                <button class="control-btn" id="stopBtn" title="Stop">⏹</button>
+                <button class="control-btn" id="fastForwardBtn" title="Fast Forward">⏩</button>
+                <button class="control-btn" id="ejectBtn" title="Eject">⏏</button>
+                
+                <div class="time-display" id="timeDisplay">00:00:00</div>
+                
+                <div class="volume-control">
+                    <span>🔊</span>
+                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="75">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class VHSSimulator {
+            constructor() {
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.isRecording = false;
+                this.currentTime = 0;
+                this.totalTime = 3600; // 1 hour
+                this.volume = 75;
+                this.currentChannel = 3;
+                this.channels = [
+                    "STATIC",
+                    "TEST SIGNAL",
+                    "VHS SIMULATOR",
+                    "RETRO WAVE",
+                    "NEON DREAMS",
+                    "CYBER PUNK",
+                    "ANALOG SOUL"
+                ];
+                
+                this.initializeElements();
+                this.bindEvents();
+                this.startBackgroundEffects();
+                this.updateDisplay();
+            }
+            
+            initializeElements() {
+                this.elements = {
+                    recordBtn: document.getElementById('recordBtn'),
+                    rewindBtn: document.getElementById('rewindBtn'),
+                    playBtn: document.getElementById('playBtn'),
+                    pauseBtn: document.getElementById('pauseBtn'),
+                    stopBtn: document.getElementById('stopBtn'),
+                    fastForwardBtn: document.getElementById('fastForwardBtn'),
+                    ejectBtn: document.getElementById('ejectBtn'),
+                    timeDisplay: document.getElementById('timeDisplay'),
+                    volumeSlider: document.getElementById('volumeSlider'),
+                    screenContent: document.getElementById('screenContent'),
+                    vhsText: document.getElementById('vhsText'),
+                    loading: document.getElementById('loading'),
+                    noise: document.getElementById('noise'),
+                    recordLed: document.getElementById('recordLed'),
+                    playLed: document.getElementById('playLed'),
+                    channelDisplay: document.getElementById('channelDisplay'),
+                    particles: document.getElementById('particles')
+                };
+            }
+            
+            bindEvents() {
+                this.elements.playBtn.addEventListener('click', () => this.play());
+                this.elements.pauseBtn.addEventListener('click', () => this.pause());
+                this.elements.stopBtn.addEventListener('click', () => this.stop());
+                this.elements.recordBtn.addEventListener('click', () => this.record());
+                this.elements.rewindBtn.addEventListener('click', () => this.rewind());
+                this.elements.fastForwardBtn.addEventListener('click', () => this.fastForward());
+                this.elements.ejectBtn.addEventListener('click', () => this.eject());
+                this.elements.volumeSlider.addEventListener('input', (e) => this.setVolume(e.target.value));
+                
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+                
+                // Channel switching (click on screen)
+                this.elements.screenContent.addEventListener('click', () => this.switchChannel());
+            }
+            
+            play() {
+                if (this.isPaused) {
+                    this.isPaused = false;
+                } else if (!this.isPlaying) {
+                    this.isPlaying = true;
+                    this.showLoading();
+                    
+                    setTimeout(() => {
+                        this.hideLoading();
+                        this.startPlayback();
+                    }, 1500);
+                }
+                
+                this.elements.playLed.classList.add('active');
+                this.elements.playBtn.classList.add('active');
+                this.updateButtons();
+            }
+            
+            pause() {
+                this.isPaused = true;
+                this.elements.playBtn.classList.remove('active');
+                this.elements.pauseBtn.classList.add('active');
+                this.addGlitchEffect();
+                this.updateButtons();
+            }
+            
+            stop() {
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.currentTime = 0;
+                this.elements.playLed.classList.remove('active');
+                this.elements.screenContent.classList.remove('playing', 'recording');
+                this.clearActiveButtons();
+                this.elements.stopBtn.classList.add('active');
+                this.addGlitchEffect();
+                this.updateDisplay();
+                
+                setTimeout(() => {
+                    this.elements.stopBtn.classList.remove('active');
+                }, 200);
+            }
+            
+            record() {
+                this.isRecording = !this.isRecording;
+                
+                if (this.isRecording) {
+                    this.elements.recordLed.classList.add('active');
+                    this.elements.recordBtn.classList.add('active');
+                    this.elements.screenContent.classList.add('recording');
+                    this.elements.vhsText.textContent = 'RECORDING';
+                    this.elements.vhsText.setAttribute('data-text', 'RECORDING');
+                    this.addStaticEffect();
+                } else {
+                    this.elements.recordLed.classList.remove('active');
+                    this.elements.recordBtn.classList.remove('active');
+                    this.elements.screenContent.classList.remove('recording');
+                    this.elements.vhsText.textContent = this.channels[this.currentChannel];
+                    this.elements.vhsText.setAttribute('data-text', this.channels[this.currentChannel]);
+                    this.removeStaticEffect();
+                }
+            }
+            
+            rewind() {
+                this.addGlitchEffect();
+                this.elements.rewindBtn.classList.add('active');
+                
+                const rewindInterval = setInterval(() => {
+                    this.currentTime = Math.max(0, this.currentTime - 10);
+                    this.updateDisplay();
+                }, 50);
+                
+                setTimeout(() => {
+                    clearInterval(rewindInterval);
+                    this.elements.rewindBtn.classList.remove('active');
+                }, 1000);
+            }
+            
+            fastForward() {
+                this.addGlitchEffect();
+                this.elements.fastForwardBtn.classList.add('active');
+                
+                const ffInterval = setInterval(() => {
+                    this.currentTime = Math.min(this.totalTime, this.currentTime + 10);
+                    this.updateDisplay();
+                }, 50);
+                
+                setTimeout(() => {
+                    clearInterval(ffInterval);
+                    this.elements.fastForwardBtn.classList.remove('active');
+                }, 1000);
+            }
+            
+            eject() {
+                this.addGlitchEffect();
+                this.elements.ejectBtn.classList.add('active');
+                
+                // Simulate tape ejection
+                this.elements.screenContent.style.transform = 'translateY(-20px)';
+                this.elements.vhsText.textContent = 'TAPE EJECTED';
+                
+                setTimeout(() => {
+                    this.elements.screenContent.style.transform = 'translateY(0)';
+                    this.elements.vhsText.textContent = 'INSERT TAPE';
+                    this.elements.ejectBtn.classList.remove('active');
+                }, 2000);
+                
+                setTimeout(() => {
+                    this.elements.vhsText.textContent = this.channels[this.currentChannel];
+                }, 4000);
+            }
+            
+            setVolume(value) {
+                this.volume = value;
+                // Visual volume feedback
+                const intensity = value / 100;
+                this.elements.screenContent.style.filter = `blur(${(1-intensity)*2}px) contrast(${0.8 + intensity*0.4}) saturate(${0.8 + intensity*0.7})`;
+            }
+            
+            switchChannel() {
+                this.currentChannel = (this.currentChannel + 1) % this.channels.length;
+                this.elements.channelDisplay.textContent = `CH ${String(this.currentChannel).padStart(2, '0')}`;
+                this.elements.channelDisplay.classList.add('visible');
+                
+                this.addGlitchEffect();
+                this.addStaticEffect(300);
+                
+                setTimeout(() => {
+                    this.elements.vhsText.textContent = this.channels[this.currentChannel];
+                    this.elements.vhsText.setAttribute('data-text', this.channels[this.currentChannel]);
+                    this.elements.channelDisplay.classList.remove('visible');
+                }, 2000);
+            }
+            
+            handleKeyboard(e) {
+                switch(e.code) {
+                    case 'Space':
+                        e.preventDefault();
+                        this.isPlaying ? this.pause() : this.play();
+                        break;
+                    case 'KeyS':
+                        this.stop();
+                        break;
+                    case 'KeyR':
+                        this.record();
+                        break;
+                    case 'ArrowLeft':
+                        this.rewind();
+                        break;
+                    case 'ArrowRight':
+                        this.fastForward();
+                        break;
+                    case 'KeyC':
+                        this.switchChannel();
+                        break;
+                    case 'KeyE':
+                        this.eject();
+                        break;
+                }
+            }
+            
+            startPlayback() {
+                if (this.playbackInterval) clearInterval(this.playbackInterval);
+                
+                this.playbackInterval = setInterval(() => {
+                    if (this.isPlaying && !this.isPaused) {
+                        this.currentTime++;
+                        if (this.currentTime >= this.totalTime) {
+                            this.currentTime = 0;
+                        }
+                        this.updateDisplay();
+                    }
+                }, 1000);
+            }
+            
+            updateDisplay() {
+                const hours = Math.floor(this.currentTime / 3600);
+                const minutes = Math.floor((this.currentTime % 3600) / 60);
+                const seconds = this.currentTime % 60;
+                
+                this.elements.timeDisplay.textContent = 
+                    `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            
+            updateButtons() {
+                // Remove all active states except for the current operation
+                if (!this.isPlaying || this.isPaused) {
+                    this.elements.playBtn.classList.remove('active');
+                }
+                if (!this.isPaused) {
+                    this.elements.pauseBtn.classList.remove('active');
+                }
+            }
+            
+            clearActiveButtons() {
+                document.querySelectorAll('.control-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+            }
+            
+            showLoading() {
+                this.elements.loading.style.opacity = '1';
+                this.elements.vhsText.style.opacity = '0.3';
+            }
+            
+            hideLoading() {
+                this.elements.loading.style.opacity = '0';
+                this.elements.vhsText.style.opacity = '1';
+            }
+            
+            addGlitchEffect() {
+                this.elements.screenContent.classList.add('glitch');
+                setTimeout(() => {
+                    this.elements.screenContent.classList.remove('glitch');
+                }, 500);
+            }
+            
+            addStaticEffect(duration = 200) {
+                this.elements.noise.style.opacity = '0.3';
+                setTimeout(() => {
+                    this.elements.noise.style.opacity = '0';
+                }, duration);
+            }
+            
+            removeStaticEffect() {
+                this.elements.noise.style.opacity = '0';
+            }
+            
+            startBackgroundEffects() {
+                // Create floating particles with variety
+                setInterval(() => {
+                    this.createParticle();
+                }, 1500);
+                
+                // Create floating orbs
+                this.createFloatingOrbs();
+                
+                // Random glitch effects
+                setInterval(() => {
+                    if (Math.random() < 0.08) {
+                        this.addGlitchEffect();
+                    }
+                }, 8000);
+                
+                // Subtle static bursts
+                setInterval(() => {
+                    if (Math.random() < 0.03 && !this.isRecording) {
+                        this.addStaticEffect(150);
+                    }
+                }, 4000);
+                
+                // Initialize text data attributes
+                this.elements.vhsText.setAttribute('data-text', this.elements.vhsText.textContent);
+            }
+            
+            createParticle() {
+                const particle = document.createElement('div');
+                const sizes = ['small', 'medium', 'large'];
+                const size = sizes[Math.floor(Math.random() * sizes.length)];
+                
+                particle.className = `particle ${size}`;
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 2 + 's';
+                
+                // Vary the animation duration based on size
+                const baseDuration = size === 'small' ? 8 : size === 'medium' ? 10 : 12;
+                particle.style.animationDuration = (baseDuration + Math.random() * 4) + 's';
+                
+                this.elements.particles.appendChild(particle);
+                
+                setTimeout(() => {
+                    if (particle.parentNode) {
+                        particle.parentNode.removeChild(particle);
+                    }
+                }, (baseDuration + 4) * 1000);
+            }
+            
+            createFloatingOrbs() {
+                const orbContainer = document.createElement('div');
+                orbContainer.className = 'floating-orbs';
+                orbContainer.style.position = 'fixed';
+                orbContainer.style.top = '0';
+                orbContainer.style.left = '0';
+                orbContainer.style.width = '100%';
+                orbContainer.style.height = '100%';
+                orbContainer.style.pointerEvents = 'none';
+                orbContainer.style.zIndex = '2';
+                
+                for (let i = 1; i <= 3; i++) {
+                    const orb = document.createElement('div');
+                    orb.className = `floating-orb orb-${i}`;
+                    orbContainer.appendChild(orb);
+                }
+                
+                document.body.appendChild(orbContainer);
+            }
+        }
+        
+        // Initialize the VHS Simulator when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new VHSSimulator();
+        });
+        
+        // Add enhanced mouse interactions and screen responsiveness
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            
+            // Enhanced parallax effect on screen content
+            const screenContent = document.getElementById('screenContent');
+            const offsetX = (x - 0.5) * 15;
+            const offsetY = (y - 0.5) * 15;
+            
+            screenContent.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            
+            // Subtle mouse-following glow effect
+            const vhsPlayer = document.querySelector('.vhs-player');
+            const rect = vhsPlayer.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+            
+            const distance = Math.sqrt(Math.pow(mouseX - centerX, 2) + Math.pow(mouseY - centerY, 2));
+            const maxDistance = 300;
+            const intensity = Math.max(0, 1 - distance / maxDistance);
+            
+            vhsPlayer.style.boxShadow = `
+                0 0 ${50 + intensity * 30}px rgba(0, 255, 65, ${0.2 + intensity * 0.2}),
+                inset 0 0 30px rgba(0, 0, 0, 0.8),
+                0 ${20 + intensity * 10}px ${40 + intensity * 20}px rgba(0, 0, 0, 0.6)
+            `;
+        });
+        
+        // Enhanced keyboard visual feedback
+        document.addEventListener('keydown', (e) => {
+            const screenContent = document.getElementById('screenContent');
+            screenContent.style.filter = 'blur(1px) contrast(1.4) saturate(1.8) brightness(1.2)';
+            
+            setTimeout(() => {
+                screenContent.style.filter = '';
+            }, 100);
+        });
+        
+        // Add window resize handler for responsiveness
+        window.addEventListener('resize', () => {
+            const particles = document.querySelectorAll('.particle');
+            particles.forEach(particle => {
+                particle.style.left = Math.random() * 100 + '%';
+            });
+        });
+    </script>
+</body>
+</html>
